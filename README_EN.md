@@ -8,7 +8,7 @@ API Quota Dashboard is a lightweight macOS menu bar app that brings balances, us
 
 ## Download and install
 
-1. Download `API额度看板-v1.5.12.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
+1. Download `APIQuotaDashboard-v1.5.12.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
 2. Extract the archive and drag `API额度看板.app` into Applications.
 3. Launch the app, then use its menu bar item to view quota information, switch providers, or open Settings.
 
@@ -76,7 +76,7 @@ You should still review network requests, credential permissions, and third-part
 
 ## Checksum
 
-`API额度看板-v1.5.12.zip`
+`APIQuotaDashboard-v1.5.12.zip`
 
 ```text
 SHA-256: 063ea032a33917f7eac21df315aad7538e8eab2aac693bb92a01a56573271b43

@@ -8,7 +8,7 @@ API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常
 
 ## 下载与安装
 
-1. 从 [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest) 下载 `API额度看板-v1.5.12.zip`。
+1. 从 [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest) 下载 `APIQuotaDashboard-v1.5.12.zip`。
 2. 解压后，将 `API额度看板.app` 拖入“应用程序”文件夹。
 3. 启动应用，从菜单栏查看额度、切换提供方或打开设置。
 
@@ -76,7 +76,7 @@ SwiftPM 生成的可执行文件位于 `.build/release/APIQuotaDashboard`。GitH
 
 ## 校验值
 
-`API额度看板-v1.5.12.zip`
+`APIQuotaDashboard-v1.5.12.zip`
 
 ```text
 SHA-256: 063ea032a33917f7eac21df315aad7538e8eab2aac693bb92a01a56573271b43
