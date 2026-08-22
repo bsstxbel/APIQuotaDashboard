@@ -1,0 +1,14 @@
+{
+  "provider": "codex",
+  "refresh_interval_seconds": 120,
+  "enabled_providers": [
+    "deepseek",
+    "volcengine",
+    "codex",
+    "claude",
+    "gemini"
+  ],
+  "use_system_proxy": true,
+  "icon_appearance": "system",
+  "auto_discover_providers": true
+}

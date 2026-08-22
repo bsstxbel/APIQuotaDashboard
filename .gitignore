@@ -1,0 +1,10 @@
+.build/
+.cache/
+dist/
+.DS_Store
+config.live.*.json
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+*.xcuserstate
+DerivedData/
+*.app
+*.zip
