@@ -29,6 +29,20 @@ The current package is ad-hoc signed and has not been notarized with an Apple De
 
 “Balance,” “usage,” and “subscription allowance” mean different things on different platforms. The app reports data through the currently available official APIs or local sign-in state and does not treat consumer subscriptions as developer API credit.
 
+## How to use
+
+1. Launch the app, click its quota text or icon in the macOS menu bar, and choose **Settings…**.
+2. Configure the providers you want on the **Accounts** tab:
+   - DeepSeek: enter an account name and API key, then choose **Save and Switch**.
+   - Volcengine: install and sign in to `arkcli`, refresh the list, and select a profile.
+   - Codex: sign in to Codex locally first; the app uses the existing local sign-in state.
+   - Kimi, Qwen, MiniMax, and Claude: enter the required credentials and save them. Qwen also requires a Workspace ID.
+   - Gemini: open Google AI Studio, sign in, and confirm that it should be added to the provider list.
+3. On the **Providers** tab, select the items that should appear under **Switch Provider**, then save the selection.
+4. Return to the menu bar menu to switch providers, refresh immediately, or choose an automatic refresh interval.
+
+The **General** tab also controls launch at login, system or manual proxies, icon appearance, and custom refresh intervals. To reposition the menu bar item, hold Command (⌘) and drag it; macOS remembers the position.
+
 ## Highlights
 
 - Shows the active balance, token amount, or remaining percentage directly in the menu bar.
