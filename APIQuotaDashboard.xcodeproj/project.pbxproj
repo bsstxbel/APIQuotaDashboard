@@ -1,0 +1,113 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* DeepSeekBalanceApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000001 /* DeepSeekBalanceApp.swift */; };
+		A10000000000000000000002 /* ProviderSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ProviderSupport.swift */; };
+		A10000000000000000000003 /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* SettingsWindowController.swift */; };
+		A10000000000000000000009 /* APIQuotaDashboardDark.icns in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000D /* APIQuotaDashboardDark.icns */; };
+		A1000000000000000000000A /* APIQuotaDashboard.icon in Resources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000E /* APIQuotaDashboard.icon */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A20000000000000000000001 /* DeepSeekBalanceApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepSeekBalanceApp.swift; sourceTree = "<group>"; };
+		A20000000000000000000002 /* ProviderSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSupport.swift; sourceTree = "<group>"; };
+		A20000000000000000000003 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
+		A20000000000000000000006 /* API额度看板.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "API额度看板.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A20000000000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000000000000000000000D /* APIQuotaDashboardDark.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; name = APIQuotaDashboardDark.icns; path = Resources/APIQuotaDashboardDark.icns; sourceTree = "<group>"; };
+		A2000000000000000000000E /* APIQuotaDashboard.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer; name = APIQuotaDashboard.icon; path = Resources/APIQuotaDashboard.icon; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A60000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A70000000000000000000001 = {
+			isa = PBXGroup;
+			children = (
+				A70000000000000000000002 /* App Sources */,
+				A20000000000000000000008 /* Info.plist */,
+				A70000000000000000000005 /* Resources */,
+				A70000000000000000000004 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A70000000000000000000002 /* App Sources */ = {
+			isa = PBXGroup;
+			children = (A20000000000000000000001, A20000000000000000000002, A20000000000000000000003, );
+			path = Sources/APIQuotaDashboard;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000004 /* Products */ = {
+			isa = PBXGroup;
+			children = (A20000000000000000000006, );
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A70000000000000000000005 /* Resources */ = {
+			isa = PBXGroup;
+			children = (A2000000000000000000000E, A2000000000000000000000D, );
+			name = Resources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A50000000000000000000001 /* APIQuotaDashboard */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A80000000000000000000002 /* Build configuration list for PBXNativeTarget "APIQuotaDashboard" */;
+			buildPhases = (A60000000000000000000001, A60000000000000000000002, A60000000000000000000003, );
+			buildRules = ();
+			dependencies = ();
+			name = APIQuotaDashboard;
+			productName = APIQuotaDashboard;
+			productReference = A20000000000000000000006 /* API额度看板.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A40000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2660; LastUpgradeCheck = 2660; TargetAttributes = {A50000000000000000000001 = {CreatedOnToolsVersion = 26.0; }; }; };
+			buildConfigurationList = A80000000000000000000001 /* Build configuration list for PBXProject "APIQuotaDashboard" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = zh-Hans;
+			hasScannedForEncodings = 0;
+			knownRegions = (Base, "zh-Hans", en, );
+			mainGroup = A70000000000000000000001;
+			productRefGroup = A70000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A50000000000000000000001, );
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A60000000000000000000003 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A1000000000000000000000A, A10000000000000000000009, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A60000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000002, A10000000000000000000003, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		B10000000000000000000001 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; DEBUG_INFORMATION_FORMAT = dwarf; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 5.0; }; name = Debug; };
+		B10000000000000000000002 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; MACOSX_DEPLOYMENT_TARGET = 13.0; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_OPTIMIZATION_LEVEL = "-O"; SWIFT_VERSION = 5.0; }; name = Release; };
+		B10000000000000000000003 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = APIQuotaDashboard; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 24; ENABLE_HARDENED_RUNTIME = YES; EXECUTABLE_NAME = APIQuotaDashboard; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MARKETING_VERSION = 2.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.bsstxbel.api-quota-dashboard.v3; PRODUCT_NAME = "API额度看板"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Debug; };
+		B10000000000000000000004 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = APIQuotaDashboard; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 24; ENABLE_HARDENED_RUNTIME = YES; EXECUTABLE_NAME = APIQuotaDashboard; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Info.plist; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; MARKETING_VERSION = 2.0.0; PRODUCT_BUNDLE_IDENTIFIER = com.bsstxbel.api-quota-dashboard.v3; PRODUCT_NAME = "API额度看板"; SWIFT_EMIT_LOC_STRINGS = YES; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A80000000000000000000001 /* Build configuration list for PBXProject "APIQuotaDashboard" */ = {isa = XCConfigurationList; buildConfigurations = (B10000000000000000000001, B10000000000000000000002, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A80000000000000000000002 /* Build configuration list for PBXNativeTarget "APIQuotaDashboard" */ = {isa = XCConfigurationList; buildConfigurations = (B10000000000000000000003, B10000000000000000000004, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = A40000000000000000000001 /* Project object */;
+}

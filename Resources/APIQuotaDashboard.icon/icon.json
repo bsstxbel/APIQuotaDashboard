@@ -1,0 +1,156 @@
+{
+  "fill" : {
+    "linear-gradient" : [
+      "display-p3:0.33618,0.68896,0.94189,1.00000",
+      "display-p3:0.19824,0.39502,0.91016,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 0.7
+      }
+    }
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.40000,0.78824,0.54118,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "02-Tick-1.svg",
+          "name" : "02-Tick-1",
+          "opacity" : 0.92,
+          "position" : {
+            "scale" : 0.96,
+            "translation-in-points" : [
+              -16.716384598224437,
+              58.67832956773407
+            ]
+          }
+        }
+      ],
+      "name" : "00 Rear Green Cylinder",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.22
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.89804,0.60392,0.36863,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "04-Tick-3.svg",
+          "name" : "04-Tick-3",
+          "opacity" : 0.98,
+          "position" : {
+            "scale" : 0.97,
+            "translation-in-points" : [
+              14.897810108854856,
+              0.8233641758046133
+            ]
+          }
+        }
+      ],
+      "name" : "04 Front Orange Cylinder",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.22
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "solid" : "extended-srgb:0.90196,0.79608,0.39608,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "03-Tick-2.svg",
+          "name" : "03-Tick-2",
+          "opacity" : 0.93,
+          "position" : {
+            "scale" : 0.97,
+            "translation-in-points" : [
+              -11.064751121912934,
+              22.390448317102937
+            ]
+          }
+        }
+      ],
+      "name" : "03 Middle Yellow Cylinder",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.22
+      }
+    },
+    {
+      "layers" : [
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "solid" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
+          },
+          "image-name" : "05-StatusDot.svg",
+          "name" : "05-StatusDot",
+          "opacity" : 1,
+          "position" : {
+            "scale" : 1.28,
+            "translation-in-points" : [
+              -50.920262553797784,
+              -78.64299819249936
+            ]
+          }
+        },
+        {
+          "blend-mode" : "normal",
+          "fill" : {
+            "solid" : "extended-srgb:0.93725,0.96471,1.00000,1.00000"
+          },
+          "glass" : true,
+          "image-name" : "01-QuotaRing.svg",
+          "name" : "01-QuotaRing",
+          "opacity" : 0.9
+        }
+      ],
+      "name" : "01 Quota Ring",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.35
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

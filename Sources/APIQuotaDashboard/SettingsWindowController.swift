@@ -1,9 +1,33 @@
 import AppKit
 
+private final class ProviderCardView: NSView {
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+
+        let path = NSBezierPath(
+            roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+            xRadius: 8,
+            yRadius: 8
+        )
+        NSColor.secondaryLabelColor.withAlphaComponent(0.06).setFill()
+        path.fill()
+        NSColor.separatorColor.setStroke()
+        path.lineWidth = 1
+        path.stroke()
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        needsDisplay = true
+    }
+}
+
 final class SettingsWindowController: NSWindowController {
     private let service: BalanceService
     private var providerButtons: [Provider: NSButton] = [:]
+    private var providerCards: [String: NSView] = [:]
     private let providerStatus = NSTextField(labelWithString: "")
+    private let accountSearchField = NSSearchField()
 
     private let deepSeekPopup = NSPopUpButton()
     private let deepSeekNameField = NSTextField()
@@ -19,7 +43,10 @@ final class SettingsWindowController: NSWindowController {
     private let launchAtLoginButton = NSButton(checkboxWithTitle: "开机自动启动", target: nil, action: nil)
     private let systemProxyButton = NSButton(checkboxWithTitle: "自动使用 macOS 系统代理", target: nil, action: nil)
     private let manualProxyField = NSTextField()
+    private let proxyStatus = NSTextField(labelWithString: "")
+    private let diagnosticsStatus = NSTextField(labelWithString: "")
     private let iconPopup = NSPopUpButton()
+    private let menuBarDisplayPopup = NSPopUpButton()
     private let refreshPopup = NSPopUpButton()
     private let customRefreshField = NSTextField()
 
@@ -27,11 +54,12 @@ final class SettingsWindowController: NSWindowController {
         self.service = service
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 620, height: 650),
-            styleMask: [.titled, .closable, .miniaturizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "设置"
+        window.minSize = NSSize(width: 560, height: 520)
         window.center()
         super.init(window: window)
         buildInterface()
@@ -83,11 +111,18 @@ final class SettingsWindowController: NSWindowController {
         manualProxyField.target = self
         manualProxyField.action = #selector(proxyChanged)
         stack.addArrangedSubview(formRow(label: "手动代理", control: manualProxyField))
+        proxyStatus.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(proxyStatus)
 
         iconPopup.addItems(withTitles: IconAppearance.allCases.map(\.displayName))
         iconPopup.target = self
         iconPopup.action = #selector(iconChanged)
         stack.addArrangedSubview(formRow(label: "图标颜色", control: iconPopup))
+
+        menuBarDisplayPopup.addItems(withTitles: MenuBarDisplayMode.allCases.map(\.displayName))
+        menuBarDisplayPopup.target = self
+        menuBarDisplayPopup.action = #selector(menuBarDisplayChanged)
+        stack.addArrangedSubview(formRow(label: "菜单栏显示", control: menuBarDisplayPopup))
 
         refreshPopup.addItems(withTitles: BalanceService.allowedRefreshIntervals.map(refreshTitle))
         refreshPopup.target = self
@@ -108,6 +143,12 @@ final class SettingsWindowController: NSWindowController {
         let positionHint = NSTextField(wrappingLabelWithString: "菜单栏位置：按住 Command（⌘）拖动额度文字到最左侧，macOS 会自动记住该位置。系统不允许应用自行强制排序。")
         positionHint.textColor = .secondaryLabelColor
         stack.addArrangedSubview(positionHint)
+
+        let diagnostics = NSButton(title: "复制脱敏诊断信息", target: self, action: #selector(copyDiagnostics))
+        diagnostics.toolTip = "复制版本、刷新状态和错误摘要，不包含 API Key"
+        stack.addArrangedSubview(diagnostics)
+        diagnosticsStatus.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(diagnosticsStatus)
         return wrapped(stack)
     }
 
@@ -135,33 +176,40 @@ final class SettingsWindowController: NSWindowController {
 
     private func makeAccountsView() -> NSView {
         let stack = baseStack()
-        stack.addArrangedSubview(sectionTitle("DeepSeek"))
+        accountSearchField.placeholderString = "搜索提供方"
+        accountSearchField.target = self
+        accountSearchField.action = #selector(filterAccountCards)
+        accountSearchField.sendsSearchStringImmediately = true
+        stack.addArrangedSubview(accountSearchField)
 
         let deepSeekMethod = NSTextField(wrappingLabelWithString: "查询方式：使用 DeepSeek 开放平台 API Key 查询可用、充值和赠送余额。密钥只保存在 macOS 钥匙串。")
         deepSeekMethod.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(deepSeekMethod)
 
         deepSeekPopup.target = self
         deepSeekPopup.action = #selector(deepSeekSelectionChanged)
-        stack.addArrangedSubview(formRow(label: "当前账号", control: deepSeekPopup))
 
         deepSeekNameField.placeholderString = "账号名称"
-        stack.addArrangedSubview(formRow(label: "名称", control: deepSeekNameField))
         deepSeekKeyField.placeholderString = "DeepSeek API Key（存入钥匙串）"
-        stack.addArrangedSubview(formRow(label: "API Key", control: deepSeekKeyField))
 
         let dsActions = NSStackView()
         dsActions.orientation = .horizontal
         dsActions.spacing = 10
         dsActions.addArrangedSubview(NSButton(title: "保存并切换", target: self, action: #selector(saveDeepSeekAccount)))
         dsActions.addArrangedSubview(NSButton(title: "删除当前账号", target: self, action: #selector(deleteDeepSeekAccount)))
-        stack.addArrangedSubview(dsActions)
+        addProviderCard(
+            to: stack,
+            title: "DeepSeek",
+            views: [
+                deepSeekMethod,
+                formRow(label: "当前账号", control: deepSeekPopup),
+                formRow(label: "名称", control: deepSeekNameField),
+                formRow(label: "API Key", control: deepSeekKeyField),
+                dsActions
+            ]
+        )
 
-        stack.addArrangedSubview(sectionTitle("火山引擎"))
         let volcMethod = NSTextField(wrappingLabelWithString: "登录方式：使用 arkcli 官方 SSO 登录并选择 Profile；可查询 Agent/Coding Plan 与免费模型额度。")
         volcMethod.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(volcMethod)
-        stack.addArrangedSubview(formRow(label: "当前 Profile", control: volcProfilePopup))
 
         let volcActions = NSStackView()
         volcActions.orientation = .horizontal
@@ -169,16 +217,22 @@ final class SettingsWindowController: NSWindowController {
         volcActions.addArrangedSubview(NSButton(title: "切换 Profile", target: self, action: #selector(switchVolcProfile)))
         volcActions.addArrangedSubview(NSButton(title: "刷新列表", target: self, action: #selector(refreshVolcProfiles)))
         volcActions.addArrangedSubview(NSButton(title: "登录 / 更换账号", target: self, action: #selector(loginVolc)))
-        stack.addArrangedSubview(volcActions)
         volcStatus.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(volcStatus)
+        addProviderCard(
+            to: stack,
+            title: "火山引擎",
+            views: [
+                volcMethod,
+                formRow(label: "当前 Profile", control: volcProfilePopup),
+                volcActions,
+                volcStatus
+            ]
+        )
 
-        stack.addArrangedSubview(sectionTitle("Codex"))
         let codexMethod = NSTextField(wrappingLabelWithString: "登录方式：使用本机 Codex 的 ChatGPT 登录状态；切换到 Codex 后自动查询每周和 5 小时额度。")
         codexMethod.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(codexMethod)
         codexStatus.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(codexStatus)
+        addProviderCard(to: stack, title: "Codex", views: [codexMethod, codexStatus])
 
         addCredentialSection(
             to: stack,
@@ -205,17 +259,33 @@ final class SettingsWindowController: NSWindowController {
             method: "查询方式：输入组织管理员 Admin API Key，查询最近 7 天组织 API 用量；个人 Claude 订阅不支持此接口。"
         )
 
-        stack.addArrangedSubview(sectionTitle("Gemini"))
+        addCredentialSection(
+            to: stack,
+            provider: .openai,
+            method: "查询方式：输入 OpenAI 组织 Admin API Key，通过官方 Costs API 查询最近 30 天成本；普通项目 API Key 无此权限。"
+        )
+
+        addCredentialSection(
+            to: stack,
+            provider: .openrouter,
+            method: "查询方式：输入 OpenRouter Management Key，查询已购额度、累计用量和剩余额度。"
+        )
+
+        addCredentialSection(
+            to: stack,
+            provider: .siliconflow,
+            method: "查询方式：输入硅基流动 API Key，查询总余额、充值余额和赠送余额。"
+        )
+
         let geminiMethod = NSTextField(wrappingLabelWithString: "查询方式：登录 Google AI Studio，在 Dashboard → Usage / Billing 查看 API 用量与余额。")
         geminiMethod.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(geminiMethod)
-        stack.addArrangedSubview(NSButton(title: "打开 Google AI Studio", target: self, action: #selector(openGeminiUsage)))
+        let openGemini = NSButton(title: "打开 Google AI Studio", target: self, action: #selector(openGeminiUsage))
         let geminiConfirmed = NSButton(title: "我已登录，加入显示提供方", target: self, action: #selector(confirmGeminiLogin))
         let geminiHide = NSButton(title: "取消登录标记", target: self, action: #selector(clearGeminiLogin))
         let geminiActions = NSStackView(views: [geminiConfirmed, geminiHide])
         geminiActions.orientation = .horizontal
         geminiActions.spacing = 10
-        stack.addArrangedSubview(geminiActions)
+        addProviderCard(to: stack, title: "Gemini", views: [geminiMethod, openGemini, geminiActions])
 
         return scrollWrapped(stack)
     }
@@ -226,19 +296,24 @@ final class SettingsWindowController: NSWindowController {
         method: String,
         needsWorkspace: Bool = false
     ) {
-        stack.addArrangedSubview(sectionTitle(provider.displayName))
         let description = NSTextField(wrappingLabelWithString: method)
         description.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(description)
 
         let field = NSSecureTextField()
-        field.placeholderString = provider == .claude ? "Admin API Key（存入钥匙串）" : "API Key（存入钥匙串）"
+        switch provider {
+        case .claude, .openai:
+            field.placeholderString = "Admin API Key（存入钥匙串）"
+        case .openrouter:
+            field.placeholderString = "Management Key（存入钥匙串）"
+        default:
+            field.placeholderString = "API Key（存入钥匙串）"
+        }
         credentialFields[provider] = field
-        stack.addArrangedSubview(formRow(label: "API Key", control: field))
+        var views: [NSView] = [description, formRow(label: "API Key", control: field)]
 
         if needsWorkspace {
             qwenWorkspaceField.placeholderString = "例如 llm-xxxxxxxx"
-            stack.addArrangedSubview(formRow(label: "Workspace ID", control: qwenWorkspaceField))
+            views.append(formRow(label: "Workspace ID", control: qwenWorkspaceField))
         }
 
         let save = NSButton(title: "保存凭证", target: self, action: #selector(saveCredential(_:)))
@@ -248,12 +323,44 @@ final class SettingsWindowController: NSWindowController {
         let actions = NSStackView(views: [save, delete])
         actions.orientation = .horizontal
         actions.spacing = 10
-        stack.addArrangedSubview(actions)
+        views.append(actions)
 
         let status = NSTextField(labelWithString: "")
         status.textColor = .secondaryLabelColor
         credentialStatuses[provider] = status
-        stack.addArrangedSubview(status)
+        views.append(status)
+        addProviderCard(to: stack, title: provider.displayName, views: views)
+    }
+
+    private func addProviderCard(
+        to stack: NSStackView,
+        title: String,
+        views: [NSView]
+    ) {
+        let card = ProviderCardView()
+
+        let content = baseStack()
+        content.spacing = 10
+        content.addArrangedSubview(sectionTitle(title))
+        for view in views {
+            content.addArrangedSubview(view)
+        }
+
+        card.addSubview(content)
+        NSLayoutConstraint.activate([
+            content.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            content.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16),
+            content.topAnchor.constraint(equalTo: card.topAnchor, constant: 14),
+            content.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -14)
+        ])
+
+        for view in content.arrangedSubviews {
+            view.widthAnchor.constraint(equalTo: content.widthAnchor).isActive = true
+        }
+
+        stack.addArrangedSubview(card)
+        card.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        providerCards[title.lowercased()] = card
     }
 
     private func baseStack() -> NSStackView {
@@ -277,21 +384,25 @@ final class SettingsWindowController: NSWindowController {
     }
 
     private func scrollWrapped(_ stack: NSStackView) -> NSView {
+        let scroll = NSScrollView()
+        scroll.hasVerticalScroller = true
+        scroll.hasHorizontalScroller = false
+        scroll.horizontalScrollElasticity = .none
+        scroll.drawsBackground = false
+
         let document = NSView()
         document.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(stack)
+        scroll.documentView = document
         NSLayoutConstraint.activate([
             stack.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 18),
             stack.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -18),
             stack.topAnchor.constraint(equalTo: document.topAnchor, constant: 22),
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -22),
-            document.widthAnchor.constraint(greaterThanOrEqualToConstant: 540)
+            document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
+            document.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor)
         ])
 
-        let scroll = NSScrollView()
-        scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
-        scroll.documentView = document
         return scroll
     }
 
@@ -305,7 +416,8 @@ final class SettingsWindowController: NSWindowController {
         let title = NSTextField(labelWithString: label)
         title.alignment = .right
         title.widthAnchor.constraint(equalToConstant: 105).isActive = true
-        control.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
+        control.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        control.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         let row = NSStackView(views: [title, control])
         row.orientation = .horizontal
         row.alignment = .centerY
@@ -330,8 +442,12 @@ final class SettingsWindowController: NSWindowController {
         launchAtLoginButton.state = LaunchAtLoginManager.isEnabled ? .on : .off
         systemProxyButton.state = service.useSystemProxy ? .on : .off
         manualProxyField.stringValue = service.codexProxy ?? ""
+        updateProxyState()
         if let index = IconAppearance.allCases.firstIndex(of: service.iconAppearance) {
             iconPopup.selectItem(at: index)
+        }
+        if let index = MenuBarDisplayMode.allCases.firstIndex(of: service.menuBarDisplayMode) {
+            menuBarDisplayPopup.selectItem(at: index)
         }
         if let index = BalanceService.allowedRefreshIntervals.firstIndex(of: service.refreshIntervalSeconds) {
             refreshPopup.selectItem(at: index)
@@ -366,16 +482,39 @@ final class SettingsWindowController: NSWindowController {
     }
 
     @objc private func proxyChanged() {
-        service.setProxyConfiguration(
+        guard service.setProxyConfiguration(
             useSystem: systemProxyButton.state == .on,
             manualProxy: manualProxyField.stringValue
-        )
+        ) else {
+            proxyStatus.stringValue = "代理格式无效；请使用 socks5://主机:端口 或 http://主机:端口"
+            proxyStatus.textColor = .systemRed
+            return
+        }
+        updateProxyState()
+    }
+
+    private func updateProxyState() {
+        manualProxyField.isEnabled = systemProxyButton.state == .off
+        proxyStatus.textColor = .secondaryLabelColor
+        if systemProxyButton.state == .on {
+            proxyStatus.stringValue = "当前使用 macOS 系统代理设置"
+        } else if manualProxyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            proxyStatus.stringValue = "当前使用直连"
+        } else {
+            proxyStatus.stringValue = "手动代理格式有效"
+        }
     }
 
     @objc private func iconChanged() {
         let index = iconPopup.indexOfSelectedItem
         guard IconAppearance.allCases.indices.contains(index) else { return }
         service.setIconAppearance(IconAppearance.allCases[index])
+    }
+
+    @objc private func menuBarDisplayChanged() {
+        let index = menuBarDisplayPopup.indexOfSelectedItem
+        guard MenuBarDisplayMode.allCases.indices.contains(index) else { return }
+        service.setMenuBarDisplayMode(MenuBarDisplayMode.allCases[index])
     }
 
     @objc private func refreshPresetChanged() {
@@ -416,6 +555,7 @@ final class SettingsWindowController: NSWindowController {
 
     @objc private func deleteDeepSeekAccount() {
         guard let account = deepSeekPopup.titleOfSelectedItem else { return }
+        guard confirmDeletion(title: "删除 DeepSeek 账号？", detail: "将从钥匙串删除“\(account)”的 API Key，此操作无法撤销。") else { return }
         if service.deleteDeepSeekAccount(account) { reloadDeepSeekAccounts() }
     }
 
@@ -499,6 +639,10 @@ final class SettingsWindowController: NSWindowController {
     @objc private func deleteCredential(_ sender: NSButton) {
         guard let rawValue = sender.identifier?.rawValue,
               let provider = Provider(rawValue: rawValue) else { return }
+        guard confirmDeletion(
+            title: "删除 \(provider.displayName) 凭证？",
+            detail: "将从钥匙串删除该提供方的凭证，此操作无法撤销。"
+        ) else { return }
         _ = service.deleteCredential(for: provider)
         reloadCredentialStatuses()
         reloadProviderButtons()
@@ -517,6 +661,31 @@ final class SettingsWindowController: NSWindowController {
     @objc private func clearGeminiLogin() {
         service.setGeminiLoginConfirmed(false)
         reloadProviderButtons()
+    }
+
+    @objc private func filterAccountCards() {
+        let query = accountSearchField.stringValue
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        for (name, card) in providerCards {
+            card.isHidden = !query.isEmpty && !name.contains(query)
+        }
+    }
+
+    @objc private func copyDiagnostics() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(service.diagnosticReport, forType: .string)
+        diagnosticsStatus.stringValue = "已复制，不包含 API Key 或登录令牌"
+    }
+
+    private func confirmDeletion(title: String, detail: String) -> Bool {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = detail
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 
     private func showError(_ message: String) {

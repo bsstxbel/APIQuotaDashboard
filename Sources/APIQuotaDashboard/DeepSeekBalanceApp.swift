@@ -14,6 +14,9 @@ enum Provider: String, Codable, CaseIterable {
     case doubao = "doubao"
     case zhipu = "zhipu"
     case minimax = "minimax"
+    case openai = "openai"
+    case openrouter = "openrouter"
+    case siliconflow = "siliconflow"
     case wenxin = "wenxin"
     case hunyuan = "hunyuan"
 
@@ -29,14 +32,59 @@ enum Provider: String, Codable, CaseIterable {
         case .doubao: return "豆包"
         case .zhipu: return "智谱 GLM"
         case .minimax: return "MiniMax"
+        case .openai: return "OpenAI API"
+        case .openrouter: return "OpenRouter"
+        case .siliconflow: return "硅基流动"
         case .wenxin: return "文心千帆"
         case .hunyuan: return "腾讯混元"
         }
     }
 
+    var shortName: String {
+        switch self {
+        case .deepseek: return "DS"
+        case .volcengine: return "火山"
+        case .codex: return "Codex"
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        case .kimi: return "Kimi"
+        case .qwen: return "千问"
+        case .doubao: return "豆包"
+        case .zhipu: return "GLM"
+        case .minimax: return "MiniMax"
+        case .openai: return "OpenAI"
+        case .openrouter: return "OR"
+        case .siliconflow: return "硅基"
+        case .wenxin: return "文心"
+        case .hunyuan: return "混元"
+        }
+    }
+
+    var dashboardURL: URL? {
+        let address: String
+        switch self {
+        case .deepseek: address = "https://platform.deepseek.com/usage"
+        case .volcengine, .doubao: address = "https://console.volcengine.com/ark"
+        case .codex: address = "https://chatgpt.com/codex/settings"
+        case .claude: address = "https://console.anthropic.com/settings/usage"
+        case .gemini: address = "https://aistudio.google.com/usage"
+        case .kimi: address = "https://platform.moonshot.cn/console"
+        case .qwen: address = "https://bailian.console.aliyun.com/"
+        case .zhipu: address = "https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys"
+        case .minimax: address = "https://platform.minimaxi.com/"
+        case .openai: address = "https://platform.openai.com/usage"
+        case .openrouter: address = "https://openrouter.ai/activity"
+        case .siliconflow: address = "https://cloud.siliconflow.cn/account/expense"
+        case .wenxin: address = "https://console.bce.baidu.com/qianfan/overview"
+        case .hunyuan: address = "https://console.cloud.tencent.com/hunyuan"
+        }
+        return URL(string: address)
+    }
+
     var supportsQuotaQuery: Bool {
         switch self {
-        case .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax:
+        case .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax,
+             .openai, .openrouter, .siliconflow:
             return true
         case .doubao, .zhipu, .wenxin, .hunyuan:
             return false
@@ -49,7 +97,8 @@ enum Provider: String, Codable, CaseIterable {
 
     var requiresAccountSetupForDisplay: Bool {
         switch self {
-        case .claude, .gemini, .kimi, .qwen, .minimax: return true
+        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+            return true
         default: return false
         }
     }
@@ -66,12 +115,31 @@ enum Provider: String, Codable, CaseIterable {
             return "开放平台支持 API Key 查询模型限额"
         case .minimax:
             return "Token Plan 可通过官方 mmx quota 查询"
+        case .openai:
+            return "组织管理员可通过官方 Costs API 查询最近 30 天成本"
+        case .openrouter:
+            return "使用 Management Key 查询已购额度、累计用量与剩余额度"
+        case .siliconflow:
+            return "使用 API Key 查询账户总余额、充值余额与赠送余额"
         case .doubao:
             return "方舟额度统一由“火山引擎”提供方查询"
         case .zhipu, .wenxin, .hunyuan:
             return "当前仅检测本机软件，尚无已验证的通用余额接口"
         case .deepseek, .volcengine, .codex:
             return "已支持额度查询"
+        }
+    }
+
+}
+
+enum MenuBarDisplayMode: String, Codable, CaseIterable {
+    case valueOnly = "value_only"
+    case providerAndValue = "provider_and_value"
+
+    var displayName: String {
+        switch self {
+        case .valueOnly: return "仅显示额度"
+        case .providerAndValue: return "提供方 + 额度"
         }
     }
 }
@@ -288,6 +356,7 @@ struct AppConfig: Codable {
     var qwenWorkspaceID: String?
     var providerCatalogVersion: Int?
     var geminiLoginConfirmed: Bool?
+    var menuBarDisplayMode: MenuBarDisplayMode?
 
     enum CodingKeys: String, CodingKey {
         case provider
@@ -304,6 +373,7 @@ struct AppConfig: Codable {
         case qwenWorkspaceID = "qwen_workspace_id"
         case providerCatalogVersion = "provider_catalog_version"
         case geminiLoginConfirmed = "gemini_login_confirmed"
+        case menuBarDisplayMode = "menu_bar_display_mode"
     }
 
     static func load(from url: URL) -> AppConfig {
@@ -330,6 +400,7 @@ struct AppConfig: Codable {
                 , qwenWorkspaceID: nil
                 , providerCatalogVersion: nil
                 , geminiLoginConfirmed: nil
+                , menuBarDisplayMode: nil
             )
         }
         return AppConfig(
@@ -347,6 +418,7 @@ struct AppConfig: Codable {
             , qwenWorkspaceID: nil
             , providerCatalogVersion: nil
             , geminiLoginConfirmed: nil
+            , menuBarDisplayMode: nil
         )
     }
 
@@ -371,23 +443,22 @@ struct ProxySettings {
     let type: String // "socks5" or "http"
 
     static func parse(_ url: String) -> ProxySettings? {
-        // socks5://127.0.0.1:1082 or http://127.0.0.1:7890
-        let lower = url.lowercased()
-        var type = "socks5"
-        var rest = url
-        if lower.hasPrefix("socks5://") {
-            type = "socks5"
-            rest = String(url.dropFirst(9))
-        } else if lower.hasPrefix("http://") {
-            type = "http"
-            rest = String(url.dropFirst(7))
-        } else if lower.hasPrefix("https://") {
-            type = "http"
-            rest = String(url.dropFirst(8))
-        }
-        let parts = rest.split(separator: ":")
-        guard parts.count == 2, let port = Int(parts[1]) else { return nil }
-        return ProxySettings(host: String(parts[0]), port: port, type: type)
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let candidate = trimmed.contains("://") ? trimmed : "socks5://" + trimmed
+        guard let components = URLComponents(string: candidate),
+              let scheme = components.scheme?.lowercased(),
+              ["socks5", "http", "https"].contains(scheme),
+              let host = components.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !host.isEmpty,
+              let port = components.port,
+              (1...65_535).contains(port),
+              components.user == nil,
+              components.password == nil,
+              (components.path.isEmpty || components.path == "/"),
+              components.query == nil,
+              components.fragment == nil else { return nil }
+        return ProxySettings(host: host, port: port, type: scheme == "socks5" ? "socks5" : "http")
     }
 
     var connectionProxyDictionary: [String: Any] {
@@ -413,6 +484,13 @@ struct ProxySettings {
 struct ExternalQuotaSummary {
     let menuBarTitle: String
     let rows: [(String, String)]
+    let fractionRemaining: Double?
+
+    init(menuBarTitle: String, rows: [(String, String)], fractionRemaining: Double? = nil) {
+        self.menuBarTitle = menuBarTitle
+        self.rows = rows
+        self.fractionRemaining = fractionRemaining
+    }
 }
 
 // MARK: - Balance service
@@ -420,6 +498,13 @@ struct ExternalQuotaSummary {
 final class BalanceService {
     static let allowedRefreshIntervals: [TimeInterval] = [15, 30, 60, 120, 300]
     static let defaultRefreshInterval: TimeInterval = 120
+    static let staleMinimumAge: TimeInterval = 300
+    static let maximumLogSize: UInt64 = 512 * 1_024
+
+    private enum FetchContext {
+        @TaskLocal static var provider: Provider?
+        @TaskLocal static var generation: Int?
+    }
 
     // DeepSeek
     private(set) var dsBalance: DSBalanceInfo?
@@ -439,16 +524,22 @@ final class BalanceService {
     private(set) var refreshIntervalSeconds: TimeInterval
     private(set) var enabledProviders: [Provider]
     private(set) var iconAppearance: IconAppearance
+    private(set) var menuBarDisplayMode: MenuBarDisplayMode
     private(set) var useSystemProxy: Bool
     private(set) var localProviderPath: String?
     private(set) var errorMessage: String?
     private(set) var lastUpdated: Date?
+    private(set) var lastAttempted: Date?
+    private(set) var isRefreshing = false
+    private(set) var consecutiveFailures = 0
 
     var onUpdate: (() -> Void)?
 
     private let configDir: URL
     private let configURL: URL
     private var timer: Timer?
+    private var refreshTask: Task<Void, Never>?
+    private var refreshGeneration = 0
     private let arkcliPath: String
 
     init() {
@@ -497,10 +588,12 @@ final class BalanceService {
         self.dsScaleMax = cfg.deepSeekScaleMax
         self.refreshIntervalSeconds = Self.normalizedRefreshInterval(cfg.refreshIntervalSeconds)
         self.iconAppearance = cfg.iconAppearance ?? .system
+        self.menuBarDisplayMode = cfg.menuBarDisplayMode ?? .valueOnly
         self.useSystemProxy = cfg.useSystemProxy ?? true
         cfg.provider = self.provider
         cfg.enabledProviders = providers
         cfg.iconAppearance = self.iconAppearance
+        cfg.menuBarDisplayMode = self.menuBarDisplayMode
         cfg.useSystemProxy = self.useSystemProxy
         cfg.autoDiscoverProviders = false
         cfg.save(to: configURL)
@@ -527,14 +620,21 @@ final class BalanceService {
             self.arkcliPath = home.appendingPathComponent(".local/bin/arkcli").path
         }
 
-        Task { await self.fetch() }
+        requestRefresh(force: true)
         scheduleRefreshTimer()
     }
 
-    deinit { timer?.invalidate() }
+    deinit {
+        timer?.invalidate()
+        refreshTask?.cancel()
+    }
 
     func setProvider(_ p: Provider) {
         guard enabledProviders.contains(p) else { return }
+        if provider == p {
+            requestRefresh(force: true)
+            return
+        }
         provider = p
         var cfg = AppConfig.load(from: configURL)
         cfg.provider = p
@@ -547,7 +647,7 @@ final class BalanceService {
         localProviderPath = nil
         errorMessage = nil
         lastUpdated = nil
-        Task { await fetch() }
+        requestRefresh(force: true)
     }
 
     static func normalizedRefreshInterval(_ value: Double?) -> TimeInterval {
@@ -577,7 +677,7 @@ final class BalanceService {
         cfg.provider = provider
         cfg.save(to: configURL)
         onUpdate?()
-        Task { await fetch() }
+        requestRefresh(force: true)
     }
 
     @discardableResult
@@ -592,7 +692,7 @@ final class BalanceService {
         cfg.selectedDeepSeekAccount = name.trimmingCharacters(in: .whitespacesAndNewlines)
         cfg.apiKey = nil
         cfg.save(to: configURL)
-        if provider == .deepseek { Task { await fetch() } }
+        if provider == .deepseek { requestRefresh(force: true) }
         onUpdate?()
         return true
     }
@@ -602,7 +702,7 @@ final class BalanceService {
         var cfg = AppConfig.load(from: configURL)
         cfg.selectedDeepSeekAccount = name
         cfg.save(to: configURL)
-        if provider == .deepseek { Task { await fetch() } }
+        if provider == .deepseek { requestRefresh(force: true) }
         onUpdate?()
     }
 
@@ -613,20 +713,24 @@ final class BalanceService {
         let remaining = DeepSeekKeychain.accounts()
         if cfg.selectedDeepSeekAccount == name { cfg.selectedDeepSeekAccount = remaining.first }
         cfg.save(to: configURL)
-        if provider == .deepseek { Task { await fetch() } }
+        if provider == .deepseek { requestRefresh(force: true) }
         onUpdate?()
         return true
     }
 
-    func setProxyConfiguration(useSystem: Bool, manualProxy: String?) {
+    @discardableResult
+    func setProxyConfiguration(useSystem: Bool, manualProxy: String?) -> Bool {
+        let trimmed = manualProxy?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let parsedProxy = trimmed.isEmpty ? nil : ProxySettings.parse(trimmed)
+        if !useSystem, !trimmed.isEmpty, parsedProxy == nil { return false }
         useSystemProxy = useSystem
         var cfg = AppConfig.load(from: configURL)
         cfg.useSystemProxy = useSystem
-        let trimmed = manualProxy?.trimmingCharacters(in: .whitespacesAndNewlines)
-        cfg.codexProxy = (trimmed?.isEmpty == false) ? trimmed : nil
+        cfg.codexProxy = parsedProxy == nil ? nil : trimmed
         cfg.save(to: configURL)
-        if provider == .codex { Task { await fetch() } }
+        requestRefresh(force: true)
         onUpdate?()
+        return true
     }
 
     func setIconAppearance(_ appearance: IconAppearance) {
@@ -637,13 +741,21 @@ final class BalanceService {
         onUpdate?()
     }
 
+    func setMenuBarDisplayMode(_ mode: MenuBarDisplayMode) {
+        menuBarDisplayMode = mode
+        var cfg = AppConfig.load(from: configURL)
+        cfg.menuBarDisplayMode = mode
+        cfg.save(to: configURL)
+        onUpdate?()
+    }
+
     private func scheduleRefreshTimer() {
         timer?.invalidate()
         timer = nil
         guard refreshIntervalSeconds > 0 else { return }
 
         timer = Timer.scheduledTimer(withTimeInterval: refreshIntervalSeconds, repeats: true) { [weak self] _ in
-            Task { await self?.fetch() }
+            self?.requestRefresh()
         }
         timer?.tolerance = min(refreshIntervalSeconds * 0.1, 30)
     }
@@ -683,7 +795,7 @@ final class BalanceService {
     private static func isConfiguredForDisplay(_ provider: Provider, config: AppConfig) -> Bool {
         guard provider.supportsQuotaQuery else { return false }
         switch provider {
-        case .claude, .kimi, .minimax:
+        case .claude, .kimi, .minimax, .openai, .openrouter, .siliconflow:
             return !(ProviderCredentialKeychain.apiKey(provider: provider) ?? "").isEmpty
         case .qwen:
             return !(ProviderCredentialKeychain.apiKey(provider: provider) ?? "").isEmpty
@@ -712,7 +824,7 @@ final class BalanceService {
             cfg.qwenWorkspaceID = workspace
             cfg.save(to: configURL)
         }
-        if self.provider == provider { Task { await fetch() } }
+        if self.provider == provider { requestRefresh(force: true) }
         onUpdate?()
         return true
     }
@@ -783,7 +895,7 @@ final class BalanceService {
             }
             if errorMessage != nil { return "!" }
             return "…"
-        case .claude, .kimi, .qwen, .minimax:
+        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
             if let summary = externalSummary { return summary.menuBarTitle }
             if errorMessage != nil { return "!" }
             return "…"
@@ -792,6 +904,109 @@ final class BalanceService {
         case .doubao, .zhipu, .wenxin, .hunyuan:
             return localProviderPath == nil ? "未找到" : "已安装"
         }
+    }
+
+    var displayedMenuBarTitle: String {
+        switch menuBarDisplayMode {
+        case .valueOnly:
+            return menuBarTitle
+        case .providerAndValue:
+            return provider.shortName + " " + menuBarTitle
+        }
+    }
+
+    var isDataStale: Bool {
+        guard let lastUpdated else { return false }
+        let staleAge = max(Self.staleMinimumAge, refreshIntervalSeconds * 2.5)
+        return Date().timeIntervalSince(lastUpdated) > staleAge
+    }
+
+    var freshnessDescription: String {
+        if isRefreshing {
+            guard let lastUpdated else { return "正在首次刷新…" }
+            return "正在刷新 · 上次" + Self.relativeAgeDescription(since: lastUpdated)
+        }
+        guard let lastUpdated else {
+            return errorMessage == nil ? "尚未完成刷新" : "刷新失败"
+        }
+        let age = Self.relativeAgeDescription(since: lastUpdated)
+        return isDataStale ? "⚠ 数据可能已过期 · " + age : "更新于" + age
+    }
+
+    static func relativeAgeDescription(since date: Date, now: Date = Date()) -> String {
+        let seconds = max(0, Int(now.timeIntervalSince(date)))
+        switch seconds {
+        case 0..<5: return "刚刚"
+        case 5..<60: return "\(seconds) 秒前"
+        case 60..<3_600: return "\(seconds / 60) 分钟前"
+        case 3_600..<86_400: return "\(seconds / 3_600) 小时前"
+        default: return "\(seconds / 86_400) 天前"
+        }
+    }
+
+    var currentSummaryRows: [(String, String)] {
+        switch provider {
+        case .deepseek:
+            guard let balance = dsBalance else { return [] }
+            let currency = symbol(for: balance.currency)
+            return [
+                ("总余额", currency + balance.totalBalance),
+                ("充值余额", currency + balance.toppedUpBalance),
+                ("赠送余额", currency + balance.grantedBalance)
+            ]
+        case .volcengine:
+            if let period = volcPlanSummary?.primaryPeriod,
+               let remaining = period.remainingPercent {
+                return [("订阅剩余", String(format: "%.0f%%", remaining))]
+            }
+            guard let summary = volcSummary else { return [] }
+            return [
+                ("剩余总额度", formatTokens(summary.totalRemaining) + " tokens"),
+                ("有额度模型", "\(summary.modelsWithQuota) / \(summary.totalModels) 个")
+            ]
+        case .codex:
+            guard let summary = codexSummary else { return [] }
+            return [
+                ("每周剩余", summary.weeklyRemaining.map { String(format: "%.0f%%", $0) } ?? "未知"),
+                ("5 小时剩余", summary.fiveHourRemaining.map { String(format: "%.0f%%", $0) } ?? "未知")
+            ]
+        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+            return externalSummary?.rows ?? []
+        case .doubao, .zhipu, .wenxin, .hunyuan:
+            return [("本机状态", localProviderPath == nil ? "未检测到" : "已安装")]
+        }
+    }
+
+    var currentSummaryText: String {
+        var lines = [provider.displayName, "菜单栏：" + menuBarTitle]
+        lines.append(contentsOf: currentSummaryRows.map { "\($0.0)：\($0.1)" })
+        if let errorMessage { lines.append("状态：" + Self.sanitizedErrorMessage(errorMessage)) }
+        lines.append(freshnessDescription)
+        return lines.joined(separator: "\n")
+    }
+
+    var diagnosticReport: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发构建"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
+        let credentialState: String
+        if provider == .deepseek {
+            credentialState = apiKey.isEmpty ? "未配置" : "已配置"
+        } else if provider.requiresAccountSetupForDisplay && provider != .gemini {
+            credentialState = hasCredential(for: provider) ? "已配置" : "未配置"
+        } else {
+            credentialState = "不适用"
+        }
+        return [
+            "API 额度看板 \(version) (\(build))",
+            "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)",
+            "提供方：\(provider.displayName)",
+            "刷新：\(isRefreshing ? "进行中" : "空闲")，间隔 \(Int(refreshIntervalSeconds)) 秒",
+            "连续失败：\(consecutiveFailures)",
+            "凭证：\(credentialState)（不包含密钥内容）",
+            "代理：\(useSystemProxy ? "系统" : (codexProxy == nil ? "直连" : "手动"))",
+            "数据：\(freshnessDescription)",
+            "最近错误：\(errorMessage.map(Self.sanitizedErrorMessage) ?? "无")"
+        ].joined(separator: "\n")
     }
 
     // MARK: - Discrete quota colors (red → green, exactly 10 steps)
@@ -839,11 +1054,12 @@ final class BalanceService {
     }
 
     var menuBarColor: NSColor {
+        if isDataStale { return .systemOrange }
         switch provider {
         case .deepseek: return dsColor
         case .volcengine: return volcLevel.color
         case .codex: return codexColor
-        case .claude, .kimi, .qwen, .minimax:
+        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
             return errorMessage == nil && externalSummary != nil ? .systemGreen : .secondaryLabelColor
         case .gemini:
             return .systemBlue
@@ -912,12 +1128,63 @@ final class BalanceService {
         return String(format: "%.0f", n)
     }
 
-    func refresh() { Task { await fetch() } }
+    func refresh() { requestRefresh(force: true) }
+
+    func refreshIfStale() {
+        guard !isRefreshing else { return }
+        guard lastUpdated == nil || isDataStale else { return }
+        requestRefresh()
+    }
+
+    static func shouldStartRefresh(isRefreshing: Bool, force: Bool) -> Bool {
+        !isRefreshing || force
+    }
+
+    static func shouldApplyFetchResult(
+        requestedProvider: Provider,
+        currentProvider: Provider,
+        generation: Int,
+        currentGeneration: Int
+    ) -> Bool {
+        requestedProvider == currentProvider && generation == currentGeneration
+    }
+
+    private func requestRefresh(force: Bool = false) {
+        guard Self.shouldStartRefresh(isRefreshing: isRefreshing, force: force) else { return }
+        if force { refreshTask?.cancel() }
+
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        let requestedProvider = provider
+        isRefreshing = true
+        lastAttempted = Date()
+        onUpdate?()
+
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            await FetchContext.$provider.withValue(requestedProvider) {
+                await FetchContext.$generation.withValue(generation) {
+                    await self.fetch(requestedProvider)
+                }
+            }
+            await MainActor.run {
+                guard Self.shouldApplyFetchResult(
+                    requestedProvider: requestedProvider,
+                    currentProvider: self.provider,
+                    generation: generation,
+                    currentGeneration: self.refreshGeneration
+                ) else { return }
+                self.isRefreshing = false
+                self.consecutiveFailures = self.errorMessage == nil ? 0 : self.consecutiveFailures + 1
+                self.onUpdate?()
+            }
+        }
+    }
 
     // MARK: - Fetch dispatcher
 
-    func fetch() async {
-        switch provider {
+    private func fetch(_ requestedProvider: Provider) async {
+        switch requestedProvider {
         case .deepseek: await fetchDeepSeek()
         case .volcengine: await fetchVolcengine()
         case .codex: await fetchCodex()
@@ -925,6 +1192,9 @@ final class BalanceService {
         case .qwen: await fetchQwen()
         case .minimax: await fetchMiniMax()
         case .claude: await fetchClaude()
+        case .openai: await fetchOpenAI()
+        case .openrouter: await fetchOpenRouter()
+        case .siliconflow: await fetchSiliconFlow()
         case .gemini:
             await setState {
                 self.externalSummary = ExternalQuotaSummary(
@@ -966,18 +1236,7 @@ final class BalanceService {
         req.timeoutInterval = 15
 
         do {
-            let (data, resp) = try await configuredURLSession().data(for: req)
-            guard let http = resp as? HTTPURLResponse else {
-                await setState { self.errorMessage = "无效响应" }
-                return
-            }
-            guard http.statusCode == 200 else {
-                let body = String(data: data, encoding: .utf8) ?? ""
-                let msg = "HTTP " + String(http.statusCode) + (body.isEmpty ? "" : ": " + body)
-                await setState { self.errorMessage = msg }
-                log("DS error " + msg)
-                return
-            }
+            let (data, _) = try await performRequest(req)
             let decoder = JSONDecoder()
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             let decoded = try decoder.decode(DSBalanceResponse.self, from: data)
@@ -1010,7 +1269,7 @@ final class BalanceService {
                 log("DS ok " + b.currency + " total=" + b.totalBalance)
             }
         } catch {
-            let msg = error.localizedDescription
+            let msg = Self.sanitizedErrorMessage(error.localizedDescription)
             await setState { self.errorMessage = msg }
             log("DS error " + msg)
         }
@@ -1086,7 +1345,7 @@ final class BalanceService {
             DispatchQueue.main.async {
                 completion(result)
                 if case .success = result, self.provider == .volcengine {
-                    Task { await self.fetch() }
+                    self.requestRefresh(force: true)
                 }
             }
         }
@@ -1108,7 +1367,7 @@ final class BalanceService {
             DispatchQueue.main.async {
                 completion(result)
                 if case .success = result, self.provider == .volcengine {
-                    Task { await self.fetch() }
+                    self.requestRefresh(force: true)
                 }
             }
         }
@@ -1134,7 +1393,7 @@ final class BalanceService {
             let subscribed = response.items.filter { $0.subscribed && !$0.periods.isEmpty }
             if !subscribed.isEmpty { planSummary = VolcPlanSummary(items: subscribed) }
         } catch {
-            log("Volc plan unavailable: " + error.localizedDescription.prefix(200))
+            log("Volc plan unavailable: " + Self.sanitizedErrorMessage(error.localizedDescription))
         }
 
         do {
@@ -1177,7 +1436,7 @@ final class BalanceService {
             let planCount = planSummary?.items.count ?? 0
             log("Volc ok: plans=\(planCount), totalRemaining=\(totalRemaining), modelsWithQuota=\(modelsWithQuota)/\(quota.totalCount ?? quota.items.count)")
         } catch {
-            let msg = error.localizedDescription
+            let msg = Self.sanitizedErrorMessage(error.localizedDescription)
             if let planSummary {
                 await setState {
                     self.volcPlanSummary = planSummary
@@ -1223,21 +1482,8 @@ final class BalanceService {
         req.setValue("application/json", forHTTPHeaderField: "Accept")
         req.timeoutInterval = 20
 
-        let session = configuredURLSession()
-
         do {
-            let (data, resp) = try await session.data(for: req)
-            guard let http = resp as? HTTPURLResponse else {
-                await setState { self.errorMessage = "无效响应" }
-                return
-            }
-            guard http.statusCode == 200 else {
-                let body = String(data: data, encoding: .utf8) ?? ""
-                let msg = "HTTP " + String(http.statusCode) + (body.isEmpty ? "" : ": " + body.prefix(100).description)
-                await setState { self.errorMessage = msg }
-                log("Codex error " + msg)
-                return
-            }
+            let (data, _) = try await performRequest(req)
 
             let decoder = JSONDecoder()
             let decoded = try decoder.decode(CodexUsageResponse.self, from: data)
@@ -1290,7 +1536,7 @@ final class BalanceService {
             }
             log("Codex ok: plan=\(summary.planType) weekly=\(weeklyRemaining ?? -1)% 5h=\(fiveHourRemaining ?? -1)%")
         } catch {
-            let msg = error.localizedDescription
+            let msg = Self.sanitizedErrorMessage(error.localizedDescription)
             await setState { self.errorMessage = msg }
             log("Codex error: " + msg)
         }
@@ -1318,8 +1564,7 @@ final class BalanceService {
         request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
         do {
-            let (data, response) = try await configuredURLSession().data(for: request)
-            try validateHTTP(response, data: data)
+            let (data, _) = try await performRequest(request)
             guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let values = root["data"] as? [String: Any],
                   let available = number(values["available_balance"]) else {
@@ -1351,8 +1596,7 @@ final class BalanceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 20
         do {
-            let (data, response) = try await configuredURLSession().data(for: request)
-            try validateHTTP(response, data: data)
+            let (data, _) = try await performRequest(request)
             guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let output = root["output"] as? [String: Any],
                   let quotas = output["quotas"] as? [[String: Any]] else {
@@ -1381,8 +1625,7 @@ final class BalanceService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = 20
         do {
-            let (data, response) = try await configuredURLSession().data(for: request)
-            try validateHTTP(response, data: data)
+            let (data, _) = try await performRequest(request)
             let object = try JSONSerialization.jsonObject(with: data)
             let scalars = flattenedScalars(object).filter { !$0.0.lowercased().contains("key") }
             guard !scalars.isEmpty else { throw queryError("MiniMax 返回了空的套餐信息") }
@@ -1412,8 +1655,7 @@ final class BalanceService {
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.timeoutInterval = 20
         do {
-            let (data, response) = try await configuredURLSession().data(for: request)
-            try validateHTTP(response, data: data)
+            let (data, _) = try await performRequest(request)
             let object = try JSONSerialization.jsonObject(with: data)
             let tokenValues = flattenedNumbers(object).filter { $0.0.lowercased().contains("token") }
             let total = tokenValues.reduce(0) { $0 + $1.1 }
@@ -1425,12 +1667,189 @@ final class BalanceService {
         } catch { await setExternalError(.claude, error) }
     }
 
-    private func validateHTTP(_ response: URLResponse, data: Data) throws {
-        guard let http = response as? HTTPURLResponse else { throw queryError("无效响应") }
-        guard (200..<300).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8)?.prefix(180) ?? ""
-            throw queryError("HTTP \(http.statusCode)\(body.isEmpty ? "" : ": " + body)")
+    private func fetchOpenAI() async {
+        guard let key = await credential(for: .openai) else { return }
+        let startTime = Int(Date().addingTimeInterval(-30 * 24 * 60 * 60).timeIntervalSince1970)
+        var components = URLComponents(string: "https://api.openai.com/v1/organization/costs")
+        components?.queryItems = [
+            URLQueryItem(name: "start_time", value: String(startTime)),
+            URLQueryItem(name: "bucket_width", value: "1d"),
+            URLQueryItem(name: "limit", value: "30")
+        ]
+        guard let url = components?.url else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 20
+        do {
+            let (data, _) = try await performRequest(request)
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let buckets = root["data"] as? [[String: Any]] else {
+                throw queryError("OpenAI 返回数据缺少成本明细")
+            }
+            var costsByCurrency: [String: Double] = [:]
+            for bucket in buckets {
+                for result in bucket["results"] as? [[String: Any]] ?? [] {
+                    guard let amount = result["amount"] as? [String: Any],
+                          let value = number(amount["value"]) else { continue }
+                    let currency = (amount["currency"] as? String ?? "usd").uppercased()
+                    costsByCurrency[currency, default: 0] += value
+                }
+            }
+            let currency = costsByCurrency.keys.sorted().first ?? "USD"
+            let total = costsByCurrency[currency] ?? 0
+            let symbol = self.symbol(for: currency)
+            await setExternalSummary(
+                title: symbol + String(format: "%.2f", total),
+                rows: [
+                    ("最近 30 天成本", symbol + String(format: "%.2f", total)),
+                    ("统计天数", "\(buckets.count) 天"),
+                    ("接口口径", "组织 Costs API")
+                ]
+            )
+        } catch { await setExternalError(.openai, error) }
+    }
+
+    private func fetchOpenRouter() async {
+        guard let key = await credential(for: .openrouter),
+              let url = URL(string: "https://openrouter.ai/api/v1/credits") else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        do {
+            let (data, _) = try await performRequest(request)
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let values = root["data"] as? [String: Any],
+                  let total = number(values["total_credits"]),
+                  let usage = number(values["total_usage"]) else {
+                throw queryError("OpenRouter 返回数据缺少额度信息")
+            }
+            let remaining = max(0, total - usage)
+            await setExternalSummary(
+                title: "$" + String(format: "%.2f", remaining),
+                rows: [
+                    ("剩余额度", "$" + String(format: "%.2f", remaining)),
+                    ("已购额度", "$" + String(format: "%.2f", total)),
+                    ("累计用量", "$" + String(format: "%.2f", usage))
+                ],
+                fractionRemaining: total > 0 ? remaining / total : nil
+            )
+        } catch { await setExternalError(.openrouter, error) }
+    }
+
+    private func fetchSiliconFlow() async {
+        guard let key = await credential(for: .siliconflow),
+              let url = URL(string: "https://api.siliconflow.cn/v1/user/info") else { return }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer " + key, forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = 15
+        do {
+            let (data, _) = try await performRequest(request)
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let values = root["data"] as? [String: Any],
+                  let total = number(values["totalBalance"] ?? values["total_balance"] ?? values["balance"]) else {
+                throw queryError("硅基流动返回数据缺少账户余额")
+            }
+            let gift = number(values["balance"]) ?? 0
+            let charged = number(values["chargeBalance"] ?? values["charge_balance"]) ?? max(0, total - gift)
+            await setExternalSummary(
+                title: "¥" + String(format: "%.2f", total),
+                rows: [
+                    ("总余额", "¥" + String(format: "%.2f", total)),
+                    ("充值余额", "¥" + String(format: "%.2f", charged)),
+                    ("赠送余额", "¥" + String(format: "%.2f", gift))
+                ]
+            )
+        } catch { await setExternalError(.siliconflow, error) }
+    }
+
+    private func performRequest(
+        _ request: URLRequest,
+        maximumAttempts: Int = 2
+    ) async throws -> (Data, HTTPURLResponse) {
+        var lastError: Error?
+        let attempts = max(1, maximumAttempts)
+
+        for attempt in 0..<attempts {
+            do {
+                try Task.checkCancellation()
+                let (data, response) = try await configuredURLSession().data(for: request)
+                guard let http = response as? HTTPURLResponse else {
+                    throw queryError("服务器返回了无效响应")
+                }
+                if (200..<300).contains(http.statusCode) { return (data, http) }
+
+                if attempt + 1 < attempts, http.statusCode == 429 || (500..<600).contains(http.statusCode) {
+                    try await Task.sleep(nanoseconds: UInt64(450_000_000 * (attempt + 1)))
+                    continue
+                }
+                throw queryError(Self.httpErrorMessage(statusCode: http.statusCode, data: data))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                lastError = error
+                guard attempt + 1 < attempts, Self.isTransientNetworkError(error) else { throw error }
+                try await Task.sleep(nanoseconds: UInt64(450_000_000 * (attempt + 1)))
+            }
         }
+        throw lastError ?? queryError("请求失败")
+    }
+
+    static func isTransientNetworkError(_ error: Error) -> Bool {
+        guard let error = error as? URLError else { return false }
+        return [
+            .timedOut, .cannotFindHost, .cannotConnectToHost, .networkConnectionLost,
+            .dnsLookupFailed, .notConnectedToInternet, .internationalRoamingOff,
+            .callIsActive, .dataNotAllowed
+        ].contains(error.code)
+    }
+
+    static func httpErrorMessage(statusCode: Int, data: Data) -> String {
+        let detail = apiErrorDetail(from: data)
+        let headline: String
+        switch statusCode {
+        case 401: headline = "凭证无效或已过期"
+        case 403: headline = "凭证权限不足"
+        case 404: headline = "额度接口不存在或已变更"
+        case 429: headline = "请求过于频繁，请稍后重试"
+        case 500..<600: headline = "服务暂时不可用"
+        default: headline = "请求失败（HTTP \(statusCode)）"
+        }
+        guard let detail, !detail.isEmpty else { return headline }
+        return headline + "：" + sanitizedErrorMessage(detail)
+    }
+
+    private static func apiErrorDetail(from data: Data) -> String? {
+        guard !data.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: data) else { return nil }
+        if let root = object as? [String: Any] {
+            if let error = root["error"] as? [String: Any] {
+                return error["message"] as? String ?? error["msg"] as? String
+            }
+            return root["message"] as? String ?? root["msg"] as? String
+        }
+        return nil
+    }
+
+    static func sanitizedErrorMessage(_ rawMessage: String) -> String {
+        var message = rawMessage
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+        let patterns = [
+            "(?i)(bearer\\s+)[^\\s,;\\\"]+",
+            "(?i)\\b(sk(?:-[a-z0-9]+)?-[a-z0-9_-]{8,})\\b",
+            "(?i)(api[_ -]?key|authorization)([\\\"']?\\s*[:=]\\s*[\\\"']?)[^\\s,;\\\"'}]+"
+        ]
+        for (index, pattern) in patterns.enumerated() {
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(message.startIndex..<message.endIndex, in: message)
+            let replacement = index == 0 ? "$1[已隐藏]" : (index == 1 ? "[密钥已隐藏]" : "$1$2[已隐藏]")
+            message = regex.stringByReplacingMatches(in: message, range: range, withTemplate: replacement)
+        }
+        message = message.replacingOccurrences(of: "  +", with: " ", options: .regularExpression)
+        return String(message.prefix(240))
     }
 
     private func queryError(_ message: String) -> Error {
@@ -1472,24 +1891,43 @@ final class BalanceService {
         path.split(separator: ".").last.map(String.init) ?? path
     }
 
-    private func setExternalSummary(title: String, rows: [(String, String)]) async {
+    private func setExternalSummary(
+        title: String,
+        rows: [(String, String)],
+        fractionRemaining: Double? = nil
+    ) async {
         await setState {
-            self.externalSummary = ExternalQuotaSummary(menuBarTitle: title, rows: rows)
+            self.externalSummary = ExternalQuotaSummary(
+                menuBarTitle: title,
+                rows: rows,
+                fractionRemaining: fractionRemaining
+            )
             self.errorMessage = nil
             self.lastUpdated = Date()
         }
     }
 
     private func setExternalError(_ provider: Provider, _ error: Error) async {
+        let safeMessage = Self.sanitizedErrorMessage(error.localizedDescription)
         await setState {
             self.externalSummary = nil
-            self.errorMessage = error.localizedDescription
+            self.errorMessage = safeMessage
         }
-        log("\(provider.displayName) error: " + error.localizedDescription.prefix(200))
+        log("\(provider.displayName) error: " + safeMessage)
     }
 
     private func setState(_ body: @escaping () -> Void) async {
+        let requestedProvider = FetchContext.provider
+        let generation = FetchContext.generation
         await MainActor.run {
+            if let requestedProvider, let generation {
+                guard Self.shouldApplyFetchResult(
+                    requestedProvider: requestedProvider,
+                    currentProvider: self.provider,
+                    generation: generation,
+                    currentGeneration: self.refreshGeneration
+                ) else { return }
+            }
             body()
             self.onUpdate?()
         }
@@ -1498,7 +1936,9 @@ final class BalanceService {
     private func log(_ msg: String) {
         try? FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
         let f = configDir.appendingPathComponent("app.log")
-        let line = "[" + ISO8601DateFormatter().string(from: Date()) + "] " + msg + "\n"
+        rotateLogIfNeeded(at: f)
+        let line = "[" + ISO8601DateFormatter().string(from: Date()) + "] "
+            + Self.sanitizedErrorMessage(msg) + "\n"
         if let h = try? FileHandle(forWritingTo: f) {
             h.seekToEndOfFile()
             if let d = line.data(using: .utf8) { h.write(d) }
@@ -1507,14 +1947,26 @@ final class BalanceService {
             try? line.write(to: f, atomically: true, encoding: .utf8)
         }
     }
+
+    private func rotateLogIfNeeded(at url: URL) {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? NSNumber,
+              size.uint64Value >= Self.maximumLogSize else { return }
+        let archived = url.deletingLastPathComponent().appendingPathComponent("app.log.1")
+        try? FileManager.default.removeItem(at: archived)
+        try? FileManager.default.moveItem(at: url, to: archived)
+    }
 }
 
 // MARK: - App delegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private static let statusItemHorizontalPadding: CGFloat = 10
+    private static let statusItemHorizontalPadding: CGFloat = 2
     private static let minimumStatusItemWidth: CGFloat = 18
     private static let maximumStatusItemWidth: CGFloat = 96
+    static let initialStatusItemWidth: CGFloat = 52
+    static let statusItemAutosaveName = "APIQuotaDashboardQuotaV3"
+    static let statusItemBaselineOffset: CGFloat = 0
     private var statusItem: NSStatusItem?
     private var menu: NSMenu?
     private var service: BalanceService?
@@ -1535,6 +1987,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        installStatusItem()
         if CommandLine.arguments.contains("--show-settings") {
             DispatchQueue.main.async { [weak self] in
                 self?.showSettingsWindow()
@@ -1546,32 +1999,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         false
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        appearanceTimer?.invalidate()
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+
     func setup() {
-        guard statusItem == nil else { return }
+        guard service == nil else { return }
         let service = BalanceService()
         self.service = service
-
-        let item = NSStatusBar.system.statusItem(withLength: Self.minimumStatusItemWidth)
-        self.statusItem = item
-        item.autosaveName = "APIQuotaDashboardQuotaV2"
-        item.isVisible = true
-        item.button?.alignment = .center
 
         let menu = NSMenu()
         menu.delegate = self
         self.menu = menu
-        item.menu = menu
 
         service.onUpdate = { [weak self] in
-            self?.updateStatusItem()
-            self?.updateApplicationIconForCurrentAppearance(force: true)
+            guard let self else { return }
+            self.updateStatusItem()
+            self.updateApplicationIconForCurrentAppearance(force: true)
         }
         updateApplicationIconForCurrentAppearance(force: true)
         appearanceTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.updateApplicationIconForCurrentAppearance()
         }
-        updateStatusItem()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(workspaceDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func workspaceDidWake() {
+        service?.refreshIfStale()
+    }
+
+    private func installStatusItem() {
+        guard statusItem == nil, let menu else { return }
+
+        // Create the item only after AppKit finishes launching, when macOS has
+        // established the system menu extras. Reserve a stable slot first, then
+        // shrink it after the status bar has placed the new window.
+        let item = NSStatusBar.system.statusItem(withLength: Self.initialStatusItemWidth)
+        statusItem = item
+        item.isVisible = true
+        item.button?.alignment = .center
+        item.menu = menu
+        updateStatusItem(adjustLength: false)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+            guard let self else { return }
+            self.statusItem?.isVisible = true
+            self.updateStatusItem()
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            // Binding autosaveName during creation makes macOS 26 place the
+            // item beneath the clock. Bind it only after the initial placement
+            // so Command-dragged positions can still be restored and saved.
+            self?.statusItem?.autosaveName = Self.statusItemAutosaveName
+            self?.statusItem?.isVisible = true
             self?.logStatusItemState()
         }
     }
@@ -1601,7 +2087,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         switch appearance {
         case .white: resourceName = "APIQuotaDashboard"
         case .black: resourceName = "APIQuotaDashboardDark"
-        case .system: resourceName = isDark ? "APIQuotaDashboardDark" : "APIQuotaDashboard"
+        case .system:
+            // Preserve the adaptive Icon Composer asset so macOS can render
+            // its light/dark material variants instead of replacing it with a
+            // legacy static image after every quota refresh.
+            if let adaptiveIcon = NSImage(named: NSImage.applicationIconName) {
+                NSApp.applicationIconImage = adaptiveIcon
+            }
+            return
         case .transparent:
             if let url = Bundle.main.url(forResource: "APIQuotaDashboard", withExtension: "icns"),
                let image = NSImage(contentsOf: url),
@@ -1649,6 +2142,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               let provider = Provider(rawValue: rawValue) else { return }
         service?.setProvider(provider)
     }
+    @objc private func openProviderDashboardTapped() {
+        guard let url = service?.provider.dashboardURL else { return }
+        NSWorkspace.shared.open(url)
+    }
+    @objc private func copySummaryTapped() {
+        guard let text = service?.currentSummaryText else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+    @objc private func copyDiagnosticsTapped() {
+        guard let report = service?.diagnosticReport else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(report, forType: .string)
+    }
     @objc private func refreshIntervalTapped(_ sender: NSMenuItem) {
         guard let seconds = (sender.representedObject as? NSNumber)?.doubleValue else { return }
         service?.setRefreshInterval(seconds)
@@ -1694,18 +2201,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsTapped()
     }
 
-    private func updateStatusItem() {
+    private func updateStatusItem(adjustLength: Bool = true) {
         guard let item = statusItem, let button = item.button, let menu = menu, let service = service else { return }
 
         // --- Menu bar title ---
         let title = NSMutableAttributedString()
-        title.append(NSAttributedString(string: service.menuBarTitle, attributes: [
+        title.append(NSAttributedString(string: service.displayedMenuBarTitle, attributes: [
             .font: NSFont.menuBarFont(ofSize: 0),
             .foregroundColor: service.menuBarColor,
-            .baselineOffset: -1
+            .baselineOffset: Self.statusItemBaselineOffset
         ]))
         button.attributedTitle = title
-        item.length = Self.statusItemLength(contentWidth: title.size().width)
+        button.setAccessibilityLabel("API 额度看板，\(service.provider.displayName)，\(service.menuBarTitle)")
+        button.toolTip = service.provider.displayName + " · " + service.freshnessDescription
+        if adjustLength {
+            item.length = Self.statusItemLength(contentWidth: title.size().width)
+        }
 
         // --- Menu ---
         menu.removeAllItems()
@@ -1725,7 +2236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .deepseek: buildDeepSeekMenu(menu, service: service)
         case .volcengine: buildVolcengineMenu(menu, service: service)
         case .codex: buildCodexMenu(menu, service: service)
-        case .claude, .gemini, .kimi, .qwen, .minimax:
+        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
             buildExternalProviderMenu(menu, service: service)
         case .doubao, .zhipu, .wenxin, .hunyuan:
             buildLocalProviderMenu(menu, service: service)
@@ -1738,13 +2249,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let submenu = NSMenu()
         submenu.title = "切换提供方"
 
-        for provider in service.enabledProviders {
+        for (index, provider) in service.enabledProviders.enumerated() {
             let providerOption = NSMenuItem(
                 title: provider.displayName,
                 action: #selector(switchProviderTapped(_:)),
-                keyEquivalent: ""
+                keyEquivalent: index < 9 ? String(index + 1) : ""
             )
             providerOption.target = self
+            if index < 9 { providerOption.keyEquivalentModifierMask = [.command] }
             providerOption.representedObject = provider.rawValue
             if service.provider == provider { providerOption.state = .on }
             submenu.addItem(providerOption)
@@ -1780,9 +2292,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let refresh = NSMenuItem(title: "立即刷新", action: #selector(refreshTapped), keyEquivalent: "r")
+        let refresh = NSMenuItem(
+            title: service.isRefreshing ? "正在刷新…" : "立即刷新",
+            action: #selector(refreshTapped),
+            keyEquivalent: "r"
+        )
         refresh.target = self
+        refresh.isEnabled = !service.isRefreshing
         menu.addItem(refresh)
+
+        let copySummary = NSMenuItem(title: "复制当前摘要", action: #selector(copySummaryTapped), keyEquivalent: "c")
+        copySummary.target = self
+        copySummary.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(copySummary)
+
+        let openDashboard = NSMenuItem(title: "打开官方控制台", action: #selector(openProviderDashboardTapped), keyEquivalent: "")
+        openDashboard.target = self
+        openDashboard.isEnabled = service.provider.dashboardURL != nil
+        menu.addItem(openDashboard)
+
+        let diagnostics = NSMenuItem(title: "复制脱敏诊断", action: #selector(copyDiagnosticsTapped), keyEquivalent: "")
+        diagnostics.target = self
+        menu.addItem(diagnostics)
 
         let settings = NSMenuItem(title: "设置…", action: #selector(settingsTapped), keyEquivalent: ",")
         settings.target = self
@@ -1811,9 +2342,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 menu.addItem(row(label: "十档基准", value: sym + String(format: "%.2f", max)))
             }
 
-            if let d = service.lastUpdated {
-                menu.addItem(timestampRow("更新于 " + Self.timeFormatter.string(from: d)))
-            }
+            menu.addItem(timestampRow(service.freshnessDescription))
         } else if let e = service.errorMessage {
             menu.addItem(errorRow("查询失败", detail: e))
         } else {
@@ -1896,8 +2425,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         }
 
-        if displayed, let d = service.lastUpdated {
-            menu.addItem(timestampRow("更新于 " + Self.timeFormatter.string(from: d)))
+        if displayed {
+            menu.addItem(timestampRow(service.freshnessDescription))
         } else if !displayed, let e = service.errorMessage {
             menu.addItem(errorRow("查询失败", detail: e))
         } else if !displayed {
@@ -1920,9 +2449,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             for (index, entry) in summary.rows.enumerated() {
                 menu.addItem(row(label: entry.0, value: entry.1, bold: index == 0))
             }
-            if let date = service.lastUpdated {
-                menu.addItem(timestampRow("更新于 " + Self.timeFormatter.string(from: date)))
-            }
+            menu.addItem(timestampRow(service.freshnessDescription))
         } else if let error = service.errorMessage {
             menu.addItem(errorRow("尚未查询", detail: error))
         } else {
@@ -1964,9 +2491,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 menu.addItem(warn)
             }
 
-            if let d = service.lastUpdated {
-                menu.addItem(timestampRow("更新于 " + Self.timeFormatter.string(from: d)))
-            }
+            menu.addItem(timestampRow(service.freshnessDescription))
         } else if let e = service.errorMessage {
             menu.addItem(errorRow("查询失败", detail: e))
         } else {
@@ -2041,9 +2566,9 @@ final class Main {
         let delegate = AppDelegate()
         appDelegate = delegate
         app.delegate = delegate
-        // Create the status item before entering AppKit's run loop. On macOS
-        // 26, creating it from applicationDidFinishLaunching can leave its
-        // status-bar window outside the visible menu bar.
+        // Initialize data services before entering AppKit's run loop. The
+        // status item itself is installed from applicationDidFinishLaunching,
+        // after macOS has placed the system menu extras.
         delegate.setup()
         app.run()
     }

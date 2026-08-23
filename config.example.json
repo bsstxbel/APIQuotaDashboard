@@ -6,9 +6,13 @@
     "volcengine",
     "codex",
     "claude",
-    "gemini"
+    "gemini",
+    "openai",
+    "openrouter",
+    "siliconflow"
   ],
   "use_system_proxy": true,
   "icon_appearance": "system",
+  "menu_bar_display_mode": "value_only",
   "auto_discover_providers": true
 }

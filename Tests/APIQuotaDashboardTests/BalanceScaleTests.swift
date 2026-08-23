@@ -64,12 +64,18 @@ final class BalanceScaleTests: XCTestCase {
         XCTAssertTrue(Provider.kimi.queryAvailabilityDescription.contains("API Key"))
         XCTAssertTrue(Provider.claude.queryAvailabilityDescription.contains("组织管理员"))
         XCTAssertTrue(Provider.gemini.queryAvailabilityDescription.contains("AI Studio"))
+        XCTAssertTrue(Provider.openai.queryAvailabilityDescription.contains("Costs API"))
+        XCTAssertTrue(Provider.openrouter.queryAvailabilityDescription.contains("Management Key"))
+        XCTAssertTrue(Provider.siliconflow.queryAvailabilityDescription.contains("总余额"))
     }
 
     func testOnlyActuallyQueryableProvidersAppearInSettings() {
         XCTAssertEqual(
             Provider.queryableCases,
-            [.deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax]
+            [
+                .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax,
+                .openai, .openrouter, .siliconflow
+            ]
         )
         XCTAssertTrue(Provider.kimi.supportsQuotaQuery)
         XCTAssertTrue(Provider.claude.supportsQuotaQuery)
@@ -77,12 +83,16 @@ final class BalanceScaleTests: XCTestCase {
         XCTAssertFalse(Provider.zhipu.supportsQuotaQuery)
         XCTAssertTrue(Provider.kimi.requiresAccountSetupForDisplay)
         XCTAssertTrue(Provider.gemini.requiresAccountSetupForDisplay)
+        XCTAssertTrue(Provider.openrouter.requiresAccountSetupForDisplay)
         XCTAssertFalse(Provider.codex.requiresAccountSetupForDisplay)
     }
 
     func testStatusItemWidthShrinksAndRemainsBounded() {
+        XCTAssertEqual(AppDelegate.initialStatusItemWidth, 52)
+        XCTAssertEqual(AppDelegate.statusItemAutosaveName, "APIQuotaDashboardQuotaV3")
+        XCTAssertEqual(AppDelegate.statusItemBaselineOffset, 0)
         XCTAssertEqual(AppDelegate.statusItemLength(contentWidth: 1), 18)
-        XCTAssertEqual(AppDelegate.statusItemLength(contentWidth: 20.2), 31)
+        XCTAssertEqual(AppDelegate.statusItemLength(contentWidth: 20.2), 23)
         XCTAssertEqual(AppDelegate.statusItemLength(contentWidth: 200), 96)
     }
 
@@ -92,4 +102,108 @@ final class BalanceScaleTests: XCTestCase {
             Set(["white", "black", "transparent", "system"])
         )
     }
+
+    func testProxyParserAcceptsSupportedFormats() {
+        let socks = ProxySettings.parse("socks5://127.0.0.1:1080")
+        XCTAssertEqual(socks?.host, "127.0.0.1")
+        XCTAssertEqual(socks?.port, 1080)
+        XCTAssertEqual(socks?.type, "socks5")
+
+        let implicit = ProxySettings.parse("proxy.example.com:7890")
+        XCTAssertEqual(implicit?.host, "proxy.example.com")
+        XCTAssertEqual(implicit?.type, "socks5")
+
+        let http = ProxySettings.parse("https://localhost:8443")
+        XCTAssertEqual(http?.type, "http")
+    }
+
+    func testProxyParserRejectsUnsafeOrAmbiguousFormats() {
+        XCTAssertNil(ProxySettings.parse(""))
+        XCTAssertNil(ProxySettings.parse("ftp://localhost:21"))
+        XCTAssertNil(ProxySettings.parse("http://localhost"))
+        XCTAssertNil(ProxySettings.parse("http://user:password@localhost:8080"))
+        XCTAssertNil(ProxySettings.parse("http://localhost:70000"))
+        XCTAssertNil(ProxySettings.parse("http://localhost:8080/path"))
+    }
+
+    func testRefreshCoalescingAllowsOnlyForcedReplacement() {
+        XCTAssertTrue(BalanceService.shouldStartRefresh(isRefreshing: false, force: false))
+        XCTAssertFalse(BalanceService.shouldStartRefresh(isRefreshing: true, force: false))
+        XCTAssertTrue(BalanceService.shouldStartRefresh(isRefreshing: true, force: true))
+    }
+
+    func testStaleFetchResultsAreRejected() {
+        XCTAssertTrue(BalanceService.shouldApplyFetchResult(
+            requestedProvider: .deepseek,
+            currentProvider: .deepseek,
+            generation: 4,
+            currentGeneration: 4
+        ))
+        XCTAssertFalse(BalanceService.shouldApplyFetchResult(
+            requestedProvider: .deepseek,
+            currentProvider: .codex,
+            generation: 4,
+            currentGeneration: 4
+        ))
+        XCTAssertFalse(BalanceService.shouldApplyFetchResult(
+            requestedProvider: .deepseek,
+            currentProvider: .deepseek,
+            generation: 3,
+            currentGeneration: 4
+        ))
+    }
+
+    func testErrorSanitizerRemovesCommonSecretShapes() {
+        let raw = "Authorization: Bearer sk-proj-abcdefghijklmnop\napi_key=secret-value"
+        let safe = BalanceService.sanitizedErrorMessage(raw)
+        XCTAssertFalse(safe.contains("abcdefghijklmnop"))
+        XCTAssertFalse(safe.contains("secret-value"))
+        XCTAssertTrue(safe.contains("已隐藏"))
+        XCTAssertFalse(safe.contains("\n"))
+    }
+
+    func testHTTPErrorMessagesAreActionableAndSanitized() throws {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "error": ["message": "bad Bearer sk-test-abcdefghijkl"]
+        ])
+        let message = BalanceService.httpErrorMessage(statusCode: 401, data: data)
+        XCTAssertTrue(message.contains("凭证无效"))
+        XCTAssertFalse(message.contains("abcdefghijkl"))
+        XCTAssertEqual(
+            BalanceService.httpErrorMessage(statusCode: 429, data: Data()),
+            "请求过于频繁，请稍后重试"
+        )
+    }
+
+    func testTransientNetworkFailuresAreRetryable() {
+        XCTAssertTrue(BalanceService.isTransientNetworkError(URLError(.timedOut)))
+        XCTAssertTrue(BalanceService.isTransientNetworkError(URLError(.networkConnectionLost)))
+        XCTAssertFalse(BalanceService.isTransientNetworkError(URLError(.userAuthenticationRequired)))
+        XCTAssertFalse(BalanceService.isTransientNetworkError(NSError(domain: "test", code: 1)))
+    }
+
+    func testRelativeFreshnessDescriptionsUseReadableBuckets() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        XCTAssertEqual(BalanceService.relativeAgeDescription(since: now, now: now), "刚刚")
+        XCTAssertEqual(BalanceService.relativeAgeDescription(since: now.addingTimeInterval(-45), now: now), "45 秒前")
+        XCTAssertEqual(BalanceService.relativeAgeDescription(since: now.addingTimeInterval(-125), now: now), "2 分钟前")
+        XCTAssertEqual(BalanceService.relativeAgeDescription(since: now.addingTimeInterval(-7_300), now: now), "2 小时前")
+    }
+
+    func testProviderShortNamesAndOfficialDashboardsAreAvailable() {
+        for provider in Provider.queryableCases {
+            XCTAssertFalse(provider.shortName.isEmpty)
+            XCTAssertEqual(provider.dashboardURL?.scheme, "https")
+        }
+    }
+
+    func testMenuBarDisplayModesRemainStableForConfigCompatibility() {
+        XCTAssertEqual(MenuBarDisplayMode.allCases.map(\.rawValue), ["value_only", "provider_and_value"])
+        XCTAssertEqual(MenuBarDisplayMode.valueOnly.displayName, "仅显示额度")
+    }
+
+    func testLogRotationHasBoundedSize() {
+        XCTAssertEqual(BalanceService.maximumLogSize, 512 * 1_024)
+    }
+
 }

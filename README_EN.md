@@ -1,14 +1,14 @@
 # API Quota Dashboard
 
-[简体中文](README.md) · Current version: **1.5.12 (Build 19)**
+[简体中文](README.md) · Current version: **2.0.0 (Build 24)**
 
 API Quota Dashboard is a lightweight macOS menu bar app that brings balances, usage, and plan allowances from commonly used AI developer platforms into one place. It supports quick provider switching, scheduled refreshes, proxy settings, launch at login, and light/dark icons that can follow the system appearance.
 
-> The current release is built for Apple Silicon Macs and requires macOS 13.0 or later.
+> The current release is a Universal Binary for Apple silicon and Intel Macs and requires macOS 13.0 or later.
 
 ## Download and install
 
-1. Download `APIQuotaDashboard-v1.5.12.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
+1. Download `APIQuotaDashboard-v2.0.0.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
 2. Extract the archive and drag `API额度看板.app` into Applications.
 3. Launch the app, then use its menu bar item to view quota information, switch providers, or open Settings.
 
@@ -26,6 +26,9 @@ The current package is ad-hoc signed and has not been notarized with an Apple De
 | Kimi | Available, cash, and voucher balances | Moonshot API key stored in macOS Keychain |
 | Qwen | Per-model request and token limits | DashScope API key and Workspace ID |
 | MiniMax | Token Plan and remaining allowance | Token Plan key stored in macOS Keychain |
+| OpenAI API | Organization costs for the last 30 days | Organization Admin API key stored in macOS Keychain |
+| OpenRouter | Purchased credits, total usage, and remaining credits | Management key stored in macOS Keychain |
+| SiliconFlow | Total, topped-up, and granted balances | SiliconFlow API key stored in macOS Keychain |
 
 “Balance,” “usage,” and “subscription allowance” mean different things on different platforms. The app reports data through the currently available official APIs or local sign-in state and does not treat consumer subscriptions as developer API credit.
 
@@ -36,7 +39,7 @@ The current package is ad-hoc signed and has not been notarized with an Apple De
    - DeepSeek: enter an account name and API key, then choose **Save and Switch**.
    - Volcengine: install and sign in to `arkcli`, refresh the list, and select a profile.
    - Codex: sign in to Codex locally first; the app uses the existing local sign-in state.
-   - Kimi, Qwen, MiniMax, and Claude: enter the required credentials and save them. Qwen also requires a Workspace ID.
+   - Kimi, Qwen, MiniMax, Claude, OpenAI API, OpenRouter, and SiliconFlow: enter the required credentials and save them. Qwen also requires a Workspace ID.
    - Gemini: open Google AI Studio, sign in, and confirm that it should be added to the provider list.
 3. On the **Providers** tab, select the items that should appear under **Switch Provider**, then save the selection.
 4. Return to the menu bar menu to switch providers, refresh immediately, or choose an automatic refresh interval.
@@ -50,6 +53,8 @@ The **General** tab also controls launch at login, system or manual proxies, ico
 - Supports 15-second, 30-second, one-minute, two-minute, five-minute, and custom refresh intervals.
 - Supports system and manually configured proxies.
 - Supports launch at login and light, dark, transparent, or system-matched icons.
+- Offers value-only and provider-plus-value menu bar display modes.
+- Copies a quota summary or redacted diagnostics and opens the provider's official console.
 - Stores and switches between multiple DeepSeek accounts.
 - Stores API keys in macOS Keychain rather than plain-text configuration files.
 
@@ -58,8 +63,8 @@ The **General** tab also controls launch at login, system or manual proxies, ico
 ### Requirements
 
 - macOS 13.0+
-- Xcode 15 or a compatible Swift 5.9 toolchain
-- Apple Silicon Mac (the current packaged release is `arm64`)
+- Xcode 26 (required to compile the Icon Composer release asset)
+- Swift 5.9 or later
 
 ### Build and test
 
@@ -70,30 +75,42 @@ swift build -c release
 
 SwiftPM places the executable at `.build/release/APIQuotaDashboard`. The downloadable GitHub Release is packaged separately as a macOS app bundle.
 
+`Scripts/release.sh` reproducibly builds the app bundle, Universal Binary, ad-hoc signature, ZIP, and SHA-256 checksum.
+
 ## Configuration and security
 
 - `config.example.json` is a credential-free configuration example.
 - `config.live.*.json`, `.build`, and local caches are ignored by Git.
-- DeepSeek, Claude, Kimi, Qwen, and MiniMax keys are stored in macOS Keychain.
+- DeepSeek, Claude, Kimi, Qwen, MiniMax, OpenAI API, OpenRouter, and SiliconFlow keys are stored in macOS Keychain.
 - Volcengine uses the local `arkcli` authentication state; Codex uses the existing local Codex credentials.
 - This repository does not contain real API keys, login tokens, or personal session archives.
 
 You should still review network requests, credential permissions, and third-party terms before use. Provider API changes may temporarily break individual queries.
 
-## What's new in 1.5.12
+## What's new in 2.0.0
 
-- Fixed account setup entries disappearing before a provider was signed in or configured.
-- Kept setup or sign-in entries for all eight supported providers visible on the Accounts page.
-- Providers that require extra credentials only appear in the display selector after setup.
-- Added or refined query support and official entry points for Kimi, Qwen, MiniMax, Claude, and Gemini.
-- Removing credentials or clearing the Gemini sign-in marker now removes the corresponding display option.
+- Coalesces scheduled refreshes so timer and manual requests do not overlap.
+- Cancels old work and rejects stale responses after switching providers or accounts.
+- Retries transient timeouts, connection loss, HTTP 429, and 5xx failures once with a short delay.
+- Classifies and redacts HTTP, UI, log, and diagnostic errors.
+- Shows refresh progress, relative freshness, and stale-data warnings; refreshes after wake when needed.
+- Adds value-only and provider-plus-value menu bar display modes.
+- Adds copy-summary, redacted-diagnostics, and official-console actions.
+- Adds Command + 1–9 provider shortcuts plus accessibility labels and tooltips.
+- Adds account-provider search and a resizable settings window.
+- Confirms before deleting DeepSeek accounts or provider credentials.
+- Strictly validates manual proxy schemes, hosts, and ports and reports the active proxy mode.
+- Migrates launch at login to macOS 13+ `SMAppService` and removes the legacy LaunchAgent after successful registration.
+- Redacts and rotates logs at 512 KiB.
+- Adds a reproducible release script and 21 unit tests; ships an `arm64 + x86_64` Universal Binary.
+- Replaces the app icon with the new multilayer adaptive `APIQuotaDashboard.icon` Icon Composer asset.
 
 ## Checksum
 
-`APIQuotaDashboard-v1.5.12.zip`
+`APIQuotaDashboard-v2.0.0.zip`
 
 ```text
-SHA-256: 063ea032a33917f7eac21df315aad7538e8eab2aac693bb92a01a56573271b43
+SHA-256: 62f2e5aadd0ab49df0f05efc16d5f47de58b4ef223d519f21d3504449e15fc16
 ```
 
 ## Disclaimer

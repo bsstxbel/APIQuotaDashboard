@@ -1,5 +1,6 @@
 import AppKit
 import Security
+import ServiceManagement
 
 struct LocalProviderDetection {
     let provider: Provider
@@ -172,12 +173,17 @@ enum LaunchAtLoginManager {
     }
 
     static var isEnabled: Bool {
-        FileManager.default.fileExists(atPath: plistURL.path)
+        SMAppService.mainApp.status == .enabled
+            || FileManager.default.fileExists(atPath: plistURL.path)
     }
 
     static func setEnabled(_ enabled: Bool) throws {
+        let service = SMAppService.mainApp
         if !enabled {
-            if isEnabled { try FileManager.default.removeItem(at: plistURL) }
+            if service.status == .enabled { try service.unregister() }
+            if FileManager.default.fileExists(atPath: plistURL.path) {
+                try FileManager.default.removeItem(at: plistURL)
+            }
             return
         }
 
@@ -185,19 +191,13 @@ enum LaunchAtLoginManager {
         guard applicationPath.hasSuffix(".app") else {
             throw NSError(domain: label, code: 1, userInfo: [NSLocalizedDescriptionKey: "未找到应用程序包"])
         }
-        try FileManager.default.createDirectory(
-            at: plistURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        let plist: [String: Any] = [
-            "Label": label,
-            "ProgramArguments": ["/usr/bin/open", "-g", "-a", applicationPath],
-            "RunAtLoad": true,
-            "KeepAlive": false,
-            "ProcessType": "Interactive"
-        ]
-        let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
-        try data.write(to: plistURL, options: .atomic)
+        if service.status != .enabled { try service.register() }
+
+        // 2.0 uses Apple's login-item API. Remove the legacy LaunchAgent only
+        // after registration succeeds so existing users are migrated safely.
+        if FileManager.default.fileExists(atPath: plistURL.path) {
+            try FileManager.default.removeItem(at: plistURL)
+        }
     }
 }
 

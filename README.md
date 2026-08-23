@@ -1,14 +1,14 @@
 # API 额度看板
 
-[English](README_EN.md) · 当前版本：**1.5.12（Build 19）**
+[English](README_EN.md) · 当前版本：**2.0.0（Build 24）**
 
 API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常用 AI 开发平台的余额、用量或套餐余量。它支持快速切换提供方、定时刷新、系统代理、登录启动，以及跟随系统的浅色/深色图标。
 
-> 当前发布包适用于 Apple 芯片 Mac，要求 macOS 13.0 或更高版本。
+> 当前发布包同时包含 Apple 芯片与 Intel 架构，要求 macOS 13.0 或更高版本。
 
 ## 下载与安装
 
-1. 从 [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest) 下载 `APIQuotaDashboard-v1.5.12.zip`。
+1. 从 [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest) 下载 `APIQuotaDashboard-v2.0.0.zip`。
 2. 解压后，将 `API额度看板.app` 拖入“应用程序”文件夹。
 3. 启动应用，从菜单栏查看额度、切换提供方或打开设置。
 
@@ -26,6 +26,9 @@ API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常
 | Kimi | 可用余额、现金余额、代金券余额 | Moonshot API Key，保存于 macOS 钥匙串 |
 | 通义千问 | 各模型请求与 Token 限额 | DashScope API Key 与 Workspace ID |
 | MiniMax | Token Plan 与套餐剩余 | Token Plan Key，保存于 macOS 钥匙串 |
+| OpenAI API | 最近 30 天组织成本 | 组织 Admin API Key，保存于 macOS 钥匙串 |
+| OpenRouter | 已购额度、累计用量、剩余额度 | Management Key，保存于 macOS 钥匙串 |
+| 硅基流动 | 总余额、充值余额、赠送余额 | 硅基流动 API Key，保存于 macOS 钥匙串 |
 
 不同平台的“余额”“用量”和“订阅额度”口径并不相同。本应用按各平台当前可用的官方接口或本机登录状态展示信息，不会把个人会员额度与开放平台 API 额度混为一谈。
 
@@ -36,7 +39,7 @@ API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常
    - DeepSeek：填写账号名称和 API Key，然后点击“保存并切换”。
    - 火山引擎：先安装并登录 `arkcli`，再刷新列表并选择 Profile。
    - Codex：先在本机完成 Codex 登录，应用会直接使用已有登录状态。
-   - Kimi、通义千问、MiniMax、Claude：填写对应凭证并点击“保存凭证”；通义千问还需要 Workspace ID。
+   - Kimi、通义千问、MiniMax、Claude、OpenAI API、OpenRouter、硅基流动：填写对应凭证并点击“保存凭证”；通义千问还需要 Workspace ID。
    - Gemini：点击“打开 Google AI Studio”，登录后选择“我已登录，加入显示提供方”。
 3. 在“提供方”页勾选需要出现在“切换提供方”菜单中的项目，然后点击“保存显示项目”。
 4. 回到菜单栏菜单，通过“切换提供方”查看不同平台，使用“立即刷新”或“自动刷新时间”控制更新频率。
@@ -50,6 +53,8 @@ API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常
 - 支持 15 秒、30 秒、1 分钟、2 分钟、5 分钟及自定义刷新间隔。
 - 支持系统代理或手动代理配置。
 - 支持登录时启动，以及浅色、深色、透明或跟随系统的图标。
+- 支持“仅额度”或“提供方 + 额度”两种菜单栏显示模式。
+- 可复制当前额度摘要或不含密钥的诊断信息，并可直接打开提供方官方控制台。
 - DeepSeek 支持多账号保存与切换。
 - API Key 写入 macOS 钥匙串，不在普通配置文件中保存明文。
 
@@ -58,8 +63,8 @@ API 额度看板是一款轻量的 macOS 菜单栏应用，用于集中查看常
 ### 环境要求
 
 - macOS 13.0+
-- Xcode 15 或兼容的 Swift 5.9 工具链
-- Apple 芯片 Mac（当前发布包为 `arm64`）
+- Xcode 26（发布包需要编译 Icon Composer 图标）
+- Swift 5.9 或更高版本
 
 ### 构建与测试
 
@@ -70,30 +75,42 @@ swift build -c release
 
 SwiftPM 生成的可执行文件位于 `.build/release/APIQuotaDashboard`。GitHub Release 中提供的是已经组装为 macOS App Bundle 的安装包。
 
+完整的 App Bundle、通用二进制、ad-hoc 签名、ZIP 与 SHA-256 校验可通过 `Scripts/release.sh` 重复生成。
+
 ## 配置与安全
 
 - `config.example.json` 是不含密钥的配置示例。
 - `config.live.*.json`、`.build` 和本地缓存均已被 Git 忽略。
-- DeepSeek、Claude、Kimi、通义千问和 MiniMax 的密钥通过 macOS 钥匙串保存。
+- DeepSeek、Claude、Kimi、通义千问、MiniMax、OpenAI API、OpenRouter 和硅基流动的密钥通过 macOS 钥匙串保存。
 - 火山引擎依赖本机 `arkcli` 的登录状态；Codex 读取本机已有的登录凭证。
 - 本仓库不包含真实 API Key、登录令牌或个人会话记录。
 
 公开发布前仍建议自行审阅网络请求、凭证权限和第三方平台条款。第三方接口发生变化时，查询结果可能暂时不可用。
 
-## 1.5.12 更新内容
+## 2.0.0 更新内容
 
-- 修正未登录或尚未填写密钥时配置入口被隐藏的问题。
-- 账号页固定保留八个支持提供方的配置或登录入口。
-- 需要额外凭证的提供方，仅在完成配置后出现在显示选择中。
-- 新增或完善 Kimi、通义千问、MiniMax、Claude 和 Gemini 的查询或官方入口。
-- 删除凭证或取消 Gemini 登录标记时，同步移除对应显示项目。
+- 刷新任务自动合并，避免定时器与手动刷新产生重叠请求。
+- 切换提供方或账号后会取消旧任务，并拒绝过期响应回写当前界面。
+- 对超时、断网、HTTP 429 与 5xx 临时故障执行一次短延迟重试。
+- HTTP 错误按凭证、权限、限流和服务故障分类，并在界面、日志与诊断中脱敏。
+- 菜单显示刷新中、相对更新时间和陈旧数据警告；睡眠唤醒后自动补刷新。
+- 新增“仅额度”和“提供方 + 额度”两种菜单栏显示模式。
+- 新增一键复制当前摘要、一键复制脱敏诊断和打开官方控制台。
+- 切换提供方支持 Command + 1–9 快捷键，状态项补充辅助功能标签与提示。
+- 账号页支持搜索提供方，设置窗口可缩放。
+- 删除 DeepSeek 账号或其他提供方凭证前增加二次确认。
+- 手动代理使用严格格式与端口校验，并明确显示系统代理、直连或手动代理状态。
+- 登录启动迁移到 macOS 13+ 的 `SMAppService`，成功注册后安全移除旧 LaunchAgent。
+- 日志自动脱敏并在 512 KiB 时轮转，避免无限增长。
+- 新增可重复发布脚本与 21 项单元测试；发布包升级为 `arm64 + x86_64` 通用二进制。
+- 应用图标改用新的 `APIQuotaDashboard.icon` Icon Composer 多层自适应资源。
 
 ## 校验值
 
-`APIQuotaDashboard-v1.5.12.zip`
+`APIQuotaDashboard-v2.0.0.zip`
 
 ```text
-SHA-256: 063ea032a33917f7eac21df315aad7538e8eab2aac693bb92a01a56573271b43
+SHA-256: 62f2e5aadd0ab49df0f05efc16d5f47de58b4ef223d519f21d3504449e15fc16
 ```
 
 ## 免责声明
