@@ -47,6 +47,7 @@ final class SettingsWindowController: NSWindowController {
     private let diagnosticsStatus = NSTextField(labelWithString: "")
     private let iconPopup = NSPopUpButton()
     private let menuBarDisplayPopup = NSPopUpButton()
+    private let menuBarQuotaDisplayPopup = NSPopUpButton()
     private let refreshPopup = NSPopUpButton()
     private let customRefreshField = NSTextField()
 
@@ -122,7 +123,12 @@ final class SettingsWindowController: NSWindowController {
         menuBarDisplayPopup.addItems(withTitles: MenuBarDisplayMode.allCases.map(\.displayName))
         menuBarDisplayPopup.target = self
         menuBarDisplayPopup.action = #selector(menuBarDisplayChanged)
-        stack.addArrangedSubview(formRow(label: "菜单栏显示", control: menuBarDisplayPopup))
+        stack.addArrangedSubview(formRow(label: "文字内容", control: menuBarDisplayPopup))
+
+        menuBarQuotaDisplayPopup.addItems(withTitles: MenuBarQuotaDisplayMode.allCases.map(\.displayName))
+        menuBarQuotaDisplayPopup.target = self
+        menuBarQuotaDisplayPopup.action = #selector(menuBarQuotaDisplayChanged)
+        stack.addArrangedSubview(formRow(label: "限额显示", control: menuBarQuotaDisplayPopup))
 
         refreshPopup.addItems(withTitles: BalanceService.allowedRefreshIntervals.map(refreshTitle))
         refreshPopup.target = self
@@ -144,9 +150,18 @@ final class SettingsWindowController: NSWindowController {
         positionHint.textColor = .secondaryLabelColor
         stack.addArrangedSubview(positionHint)
 
-        let diagnostics = NSButton(title: "复制脱敏诊断信息", target: self, action: #selector(copyDiagnostics))
+        let copyActions = NSStackView()
+        copyActions.orientation = .horizontal
+        copyActions.spacing = 10
+
+        let summary = NSButton(title: "复制当前摘要", target: self, action: #selector(copyCurrentSummary))
+        summary.toolTip = "复制当前提供方的额度与刷新状态"
+        copyActions.addArrangedSubview(summary)
+
+        let diagnostics = NSButton(title: "复制脱敏诊断", target: self, action: #selector(copyDiagnostics))
         diagnostics.toolTip = "复制版本、刷新状态和错误摘要，不包含 API Key"
-        stack.addArrangedSubview(diagnostics)
+        copyActions.addArrangedSubview(diagnostics)
+        stack.addArrangedSubview(copyActions)
         diagnosticsStatus.textColor = .secondaryLabelColor
         stack.addArrangedSubview(diagnosticsStatus)
         return wrapped(stack)
@@ -449,6 +464,9 @@ final class SettingsWindowController: NSWindowController {
         if let index = MenuBarDisplayMode.allCases.firstIndex(of: service.menuBarDisplayMode) {
             menuBarDisplayPopup.selectItem(at: index)
         }
+        if let index = MenuBarQuotaDisplayMode.allCases.firstIndex(of: service.menuBarQuotaDisplayMode) {
+            menuBarQuotaDisplayPopup.selectItem(at: index)
+        }
         if let index = BalanceService.allowedRefreshIntervals.firstIndex(of: service.refreshIntervalSeconds) {
             refreshPopup.selectItem(at: index)
         }
@@ -456,6 +474,12 @@ final class SettingsWindowController: NSWindowController {
         reloadCodexStatus()
         reloadCredentialStatuses()
         loadVolcProfiles()
+    }
+
+    func syncMenuBarQuotaDisplayMode() {
+        if let index = MenuBarQuotaDisplayMode.allCases.firstIndex(of: service.menuBarQuotaDisplayMode) {
+            menuBarQuotaDisplayPopup.selectItem(at: index)
+        }
     }
 
     private func reloadProviderButtons() {
@@ -515,6 +539,12 @@ final class SettingsWindowController: NSWindowController {
         let index = menuBarDisplayPopup.indexOfSelectedItem
         guard MenuBarDisplayMode.allCases.indices.contains(index) else { return }
         service.setMenuBarDisplayMode(MenuBarDisplayMode.allCases[index])
+    }
+
+    @objc private func menuBarQuotaDisplayChanged() {
+        let index = menuBarQuotaDisplayPopup.indexOfSelectedItem
+        guard MenuBarQuotaDisplayMode.allCases.indices.contains(index) else { return }
+        service.setMenuBarQuotaDisplayMode(MenuBarQuotaDisplayMode.allCases[index])
     }
 
     @objc private func refreshPresetChanged() {
@@ -676,6 +706,12 @@ final class SettingsWindowController: NSWindowController {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(service.diagnosticReport, forType: .string)
         diagnosticsStatus.stringValue = "已复制，不包含 API Key 或登录令牌"
+    }
+
+    @objc private func copyCurrentSummary() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(service.currentSummaryText, forType: .string)
+        diagnosticsStatus.stringValue = "当前摘要已复制"
     }
 
     private func confirmDeletion(title: String, detail: String) -> Bool {

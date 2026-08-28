@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION="${1:-2.0.0}"
-BUILD_NUMBER="${2:-24}"
+VERSION="${1:-2.1.0}"
+BUILD_NUMBER="${2:-25}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_DIR="$(cd "$PROJECT_DIR/../.." && pwd)"
@@ -13,7 +13,11 @@ APP_PATH="$DERIVED_DATA/Build/Products/Release/API额度看板.app"
 ARCHIVE_NAME="APIQuotaDashboard-v$VERSION.zip"
 ARCHIVE_PATH="$CURRENT_DIR/$ARCHIVE_NAME"
 TEMP_ARCHIVE="$PROJECT_DIR/.build/$ARCHIVE_NAME.pending"
+SIGNING_DIR="$(mktemp -d /private/tmp/api-quota-release.XXXXXX)"
+SIGNED_APP_PATH="$SIGNING_DIR/API额度看板.app"
 LEGACY_ICON_SHA256="80d3d3e5ed573cdb10f23b09323278be562a267c6c4ab826c725817f0babeb52"
+
+trap 'rm -rf "$SIGNING_DIR"' EXIT
 
 INFO_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PROJECT_DIR/Info.plist")
 INFO_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PROJECT_DIR/Info.plist")
@@ -72,13 +76,15 @@ if [[ "$COMPILED_ICON_SHA256" == "$LEGACY_ICON_SHA256" ]]; then
   exit 1
 fi
 
-# File-provider workspaces may attach Finder/resource-fork xattrs to a freshly
-# built app. Strip them from this exact build product before ad-hoc signing.
-xattr -cr "$APP_PATH"
-codesign --force --deep --sign - "$APP_PATH"
-codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+# File-provider workspaces may immediately reattach Finder/resource-fork xattrs
+# to a freshly built app. Stage the exact build product outside the provider
+# workspace, strip metadata there, and sign/package that clean copy.
+ditto --norsrc "$APP_PATH" "$SIGNED_APP_PATH"
+xattr -cr "$SIGNED_APP_PATH"
+codesign --force --deep --sign - "$SIGNED_APP_PATH"
+codesign --verify --deep --strict --verbose=2 "$SIGNED_APP_PATH"
 
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$TEMP_ARCHIVE"
+ditto -c -k --sequesterRsrc --keepParent "$SIGNED_APP_PATH" "$TEMP_ARCHIVE"
 unzip -t "$TEMP_ARCHIVE"
 
 shopt -s nullglob

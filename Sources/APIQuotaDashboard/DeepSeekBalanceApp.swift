@@ -144,6 +144,25 @@ enum MenuBarDisplayMode: String, Codable, CaseIterable {
     }
 }
 
+enum MenuBarQuotaDisplayMode: String, Codable, CaseIterable {
+    case fiveHourOnly = "five_hour_only"
+    case totalOnly = "total_only"
+    case all = "all"
+
+    var displayName: String {
+        switch self {
+        case .fiveHourOnly: return "只显示 5 小时"
+        case .totalOnly: return "只显示总额"
+        case .all: return "全部显示"
+        }
+    }
+}
+
+struct MenuBarDisplayLine {
+    var text: String
+    let percentage: Double?
+}
+
 enum IconAppearance: String, Codable, CaseIterable {
     case white
     case black
@@ -357,6 +376,7 @@ struct AppConfig: Codable {
     var providerCatalogVersion: Int?
     var geminiLoginConfirmed: Bool?
     var menuBarDisplayMode: MenuBarDisplayMode?
+    var menuBarQuotaDisplayMode: MenuBarQuotaDisplayMode?
 
     enum CodingKeys: String, CodingKey {
         case provider
@@ -374,6 +394,7 @@ struct AppConfig: Codable {
         case providerCatalogVersion = "provider_catalog_version"
         case geminiLoginConfirmed = "gemini_login_confirmed"
         case menuBarDisplayMode = "menu_bar_display_mode"
+        case menuBarQuotaDisplayMode = "menu_bar_quota_display_mode"
     }
 
     static func load(from url: URL) -> AppConfig {
@@ -401,6 +422,7 @@ struct AppConfig: Codable {
                 , providerCatalogVersion: nil
                 , geminiLoginConfirmed: nil
                 , menuBarDisplayMode: nil
+                , menuBarQuotaDisplayMode: nil
             )
         }
         return AppConfig(
@@ -419,6 +441,7 @@ struct AppConfig: Codable {
             , providerCatalogVersion: nil
             , geminiLoginConfirmed: nil
             , menuBarDisplayMode: nil
+            , menuBarQuotaDisplayMode: nil
         )
     }
 
@@ -525,6 +548,7 @@ final class BalanceService {
     private(set) var enabledProviders: [Provider]
     private(set) var iconAppearance: IconAppearance
     private(set) var menuBarDisplayMode: MenuBarDisplayMode
+    private(set) var menuBarQuotaDisplayMode: MenuBarQuotaDisplayMode
     private(set) var useSystemProxy: Bool
     private(set) var localProviderPath: String?
     private(set) var errorMessage: String?
@@ -589,11 +613,13 @@ final class BalanceService {
         self.refreshIntervalSeconds = Self.normalizedRefreshInterval(cfg.refreshIntervalSeconds)
         self.iconAppearance = cfg.iconAppearance ?? .system
         self.menuBarDisplayMode = cfg.menuBarDisplayMode ?? .valueOnly
+        self.menuBarQuotaDisplayMode = cfg.menuBarQuotaDisplayMode ?? .all
         self.useSystemProxy = cfg.useSystemProxy ?? true
         cfg.provider = self.provider
         cfg.enabledProviders = providers
         cfg.iconAppearance = self.iconAppearance
         cfg.menuBarDisplayMode = self.menuBarDisplayMode
+        cfg.menuBarQuotaDisplayMode = self.menuBarQuotaDisplayMode
         cfg.useSystemProxy = self.useSystemProxy
         cfg.autoDiscoverProviders = false
         cfg.save(to: configURL)
@@ -745,6 +771,14 @@ final class BalanceService {
         menuBarDisplayMode = mode
         var cfg = AppConfig.load(from: configURL)
         cfg.menuBarDisplayMode = mode
+        cfg.save(to: configURL)
+        onUpdate?()
+    }
+
+    func setMenuBarQuotaDisplayMode(_ mode: MenuBarQuotaDisplayMode) {
+        menuBarQuotaDisplayMode = mode
+        var cfg = AppConfig.load(from: configURL)
+        cfg.menuBarQuotaDisplayMode = mode
         cfg.save(to: configURL)
         onUpdate?()
     }
@@ -906,12 +940,100 @@ final class BalanceService {
         }
     }
 
+    static func quotaLineValues(
+        total: String?,
+        fiveHour: String?,
+        mode: MenuBarQuotaDisplayMode
+    ) -> [String] {
+        switch mode {
+        case .fiveHourOnly:
+            return [fiveHour ?? total].compactMap { $0 }
+        case .totalOnly:
+            return [total ?? fiveHour].compactMap { $0 }
+        case .all:
+            return [total, fiveHour].compactMap { $0 }
+        }
+    }
+
+    private var quotaDisplayLines: [MenuBarDisplayLine] {
+        let total: MenuBarDisplayLine?
+        let fiveHour: MenuBarDisplayLine?
+
+        switch provider {
+        case .codex:
+            total = codexSummary?.weeklyRemaining.map {
+                MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0)
+            }
+            fiveHour = codexSummary?.fiveHourRemaining.map {
+                MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0)
+            }
+        case .volcengine:
+            let periods = volcPlanSummary?.primaryItem?.periods ?? []
+            let totalPeriod = periods.first(where: { $0.label == "weekly" })
+                ?? periods.first(where: { $0.label == "monthly" })
+                ?? periods.first(where: { $0.label == "session" })
+                ?? periods.first(where: { $0.label != "5h" })
+            total = totalPeriod?.remainingPercent.map {
+                MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0)
+            } ?? volcSummary.map {
+                MenuBarDisplayLine(text: formatTokens($0.totalRemaining), percentage: nil)
+            }
+            fiveHour = periods.first(where: { $0.label == "5h" })?.remainingPercent
+                .map { MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0) }
+        default:
+            total = MenuBarDisplayLine(text: menuBarTitle, percentage: nil)
+            fiveHour = nil
+        }
+
+        switch menuBarQuotaDisplayMode {
+        case .fiveHourOnly:
+            return [fiveHour ?? total].compactMap { $0 }
+        case .totalOnly:
+            return [total ?? fiveHour].compactMap { $0 }
+        case .all:
+            return [total, fiveHour].compactMap { $0 }
+        }
+    }
+
+    var displayedMenuBarLineModels: [MenuBarDisplayLine] {
+        var lines = quotaDisplayLines
+        if lines.isEmpty {
+            lines = [MenuBarDisplayLine(text: menuBarTitle, percentage: nil)]
+        }
+        if menuBarDisplayMode == .providerAndValue, !lines.isEmpty {
+            lines[0].text = provider.shortName + " " + lines[0].text
+        }
+        return lines
+    }
+
+    var displayedMenuBarLines: [String] {
+        displayedMenuBarLineModels.map(\.text)
+    }
+
     var displayedMenuBarTitle: String {
-        switch menuBarDisplayMode {
-        case .valueOnly:
-            return menuBarTitle
-        case .providerAndValue:
-            return provider.shortName + " " + menuBarTitle
+        displayedMenuBarLines.joined(separator: "\n")
+    }
+
+    var hasFiveHourQuota: Bool {
+        Self.hasFiveHourQuota(
+            provider: provider,
+            codexSummary: codexSummary,
+            volcPlanSummary: volcPlanSummary
+        )
+    }
+
+    static func hasFiveHourQuota(
+        provider: Provider,
+        codexSummary: CodexSummary?,
+        volcPlanSummary: VolcPlanSummary?
+    ) -> Bool {
+        switch provider {
+        case .codex:
+            return codexSummary?.fiveHourRemaining != nil || codexSummary?.fiveHourResetAt != nil
+        case .volcengine:
+            return volcPlanSummary?.primaryItem?.periods.contains(where: { $0.label == "5h" }) == true
+        default:
+            return false
         }
     }
 
@@ -1960,6 +2082,87 @@ final class BalanceService {
 
 // MARK: - App delegate
 
+private final class StatusItemTitleView: NSView {
+    private struct RenderedLine {
+        let text: String
+        let font: NSFont
+        let color: NSColor
+
+        var attributes: [NSAttributedString.Key: Any] {
+            [.font: font, .foregroundColor: color]
+        }
+
+        var size: NSSize {
+            (text as NSString).size(withAttributes: attributes)
+        }
+    }
+
+    private var renderedLines: [RenderedLine] = []
+
+    var contentWidth: CGFloat {
+        renderedLines.map { ceil($0.size.width) }.max() ?? 0
+    }
+
+    func update(lines: [MenuBarDisplayLine], fallbackColor: NSColor, isStale: Bool) {
+        let isDoubleLine = lines.count == 2
+        renderedLines = lines.enumerated().map { index, line in
+            let font: NSFont
+            if isDoubleLine {
+                font = index == 0
+                    ? .systemFont(ofSize: 10.5, weight: .medium)
+                    : .systemFont(ofSize: 12, weight: .semibold)
+            } else {
+                font = .menuBarFont(ofSize: 0)
+            }
+            let color: NSColor
+            if isStale {
+                color = .systemOrange
+            } else if let percentage = line.percentage {
+                color = BalanceService.tenStepColor(value: percentage, max: 100)
+            } else {
+                color = fallbackColor
+            }
+            return RenderedLine(text: line.text, font: font, color: color)
+        }
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !renderedLines.isEmpty else { return }
+
+        if renderedLines.count == 1, let line = renderedLines.first {
+            let size = line.size
+            let origin = NSPoint(
+                x: floor((bounds.width - size.width) / 2),
+                y: floor((bounds.height - size.height) / 2)
+            )
+            (line.text as NSString).draw(at: origin, withAttributes: line.attributes)
+            return
+        }
+
+        let top = renderedLines[0]
+        let bottom = renderedLines[1]
+        let topSize = top.size
+        let bottomSize = bottom.size
+        let overlap: CGFloat = 2.5
+        let totalHeight = topSize.height + bottomSize.height - overlap
+        let bottomY = floor((bounds.height - totalHeight) / 2) - 1.5
+        let topY = bottomY + bottomSize.height - overlap
+
+        (bottom.text as NSString).draw(
+            at: NSPoint(x: floor((bounds.width - bottomSize.width) / 2) - 0.5, y: bottomY),
+            withAttributes: bottom.attributes
+        )
+        (top.text as NSString).draw(
+            at: NSPoint(x: floor((bounds.width - topSize.width) / 2), y: topY),
+            withAttributes: top.attributes
+        )
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let statusItemHorizontalPadding: CGFloat = 2
     private static let minimumStatusItemWidth: CGFloat = 18
@@ -1968,6 +2171,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let statusItemAutosaveName = "APIQuotaDashboardQuotaV3"
     static let statusItemBaselineOffset: CGFloat = 0
     private var statusItem: NSStatusItem?
+    private var statusTitleView: StatusItemTitleView?
     private var menu: NSMenu?
     private var service: BalanceService?
     private var appearanceTimer: Timer?
@@ -2016,6 +2220,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         service.onUpdate = { [weak self] in
             guard let self else { return }
             self.updateStatusItem()
+            self.settingsWindowController?.syncMenuBarQuotaDisplayMode()
             self.updateApplicationIconForCurrentAppearance(force: true)
         }
         updateApplicationIconForCurrentAppearance(force: true)
@@ -2044,6 +2249,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = item
         item.isVisible = true
         item.button?.alignment = .center
+        item.button?.cell?.wraps = true
+        item.button?.cell?.usesSingleLineMode = false
+        item.button?.cell?.lineBreakMode = .byClipping
+        if let button = item.button {
+            let titleView = StatusItemTitleView(frame: button.bounds)
+            titleView.autoresizingMask = [.width, .height]
+            button.addSubview(titleView)
+            statusTitleView = titleView
+        }
         item.menu = menu
         updateStatusItem(adjustLength: false)
 
@@ -2146,19 +2360,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let url = service?.provider.dashboardURL else { return }
         NSWorkspace.shared.open(url)
     }
-    @objc private func copySummaryTapped() {
-        guard let text = service?.currentSummaryText else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-    }
-    @objc private func copyDiagnosticsTapped() {
-        guard let report = service?.diagnosticReport else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(report, forType: .string)
-    }
     @objc private func refreshIntervalTapped(_ sender: NSMenuItem) {
         guard let seconds = (sender.representedObject as? NSNumber)?.doubleValue else { return }
         service?.setRefreshInterval(seconds)
+    }
+    @objc private func quotaDisplayModeTapped(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let mode = MenuBarQuotaDisplayMode(rawValue: rawValue) else { return }
+        service?.setMenuBarQuotaDisplayMode(mode)
     }
 
     private func refreshIntervalTitle(_ seconds: TimeInterval) -> String {
@@ -2205,17 +2414,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let item = statusItem, let button = item.button, let menu = menu, let service = service else { return }
 
         // --- Menu bar title ---
-        let title = NSMutableAttributedString()
-        title.append(NSAttributedString(string: service.displayedMenuBarTitle, attributes: [
-            .font: NSFont.menuBarFont(ofSize: 0),
-            .foregroundColor: service.menuBarColor,
-            .baselineOffset: Self.statusItemBaselineOffset
-        ]))
-        button.attributedTitle = title
+        let lines = service.displayedMenuBarLineModels
+        statusTitleView?.update(
+            lines: lines,
+            fallbackColor: service.menuBarColor,
+            isStale: service.isDataStale
+        )
+        button.attributedTitle = NSAttributedString(string: "")
         button.setAccessibilityLabel("API 额度看板，\(service.provider.displayName)，\(service.menuBarTitle)")
         button.toolTip = service.provider.displayName + " · " + service.freshnessDescription
         if adjustLength {
-            item.length = Self.statusItemLength(contentWidth: title.size().width)
+            item.length = Self.statusItemLength(contentWidth: statusTitleView?.contentWidth ?? 0)
         }
 
         // --- Menu ---
@@ -2290,6 +2499,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         intervalItem.submenu = intervalMenu
         menu.addItem(intervalItem)
 
+        if service.hasFiveHourQuota {
+            let quotaDisplayItem = NSMenuItem(title: "5 小时显示方式", action: nil, keyEquivalent: "")
+            let quotaDisplayMenu = NSMenu()
+            quotaDisplayMenu.title = "5 小时显示方式"
+            for mode in MenuBarQuotaDisplayMode.allCases {
+                let option = NSMenuItem(
+                    title: mode.displayName,
+                    action: #selector(quotaDisplayModeTapped(_:)),
+                    keyEquivalent: ""
+                )
+                option.target = self
+                option.representedObject = mode.rawValue
+                if service.menuBarQuotaDisplayMode == mode { option.state = .on }
+                quotaDisplayMenu.addItem(option)
+            }
+            quotaDisplayItem.submenu = quotaDisplayMenu
+            menu.addItem(quotaDisplayItem)
+        }
+
         menu.addItem(.separator())
 
         let refresh = NSMenuItem(
@@ -2301,19 +2529,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh.isEnabled = !service.isRefreshing
         menu.addItem(refresh)
 
-        let copySummary = NSMenuItem(title: "复制当前摘要", action: #selector(copySummaryTapped), keyEquivalent: "c")
-        copySummary.target = self
-        copySummary.keyEquivalentModifierMask = [.command, .shift]
-        menu.addItem(copySummary)
-
         let openDashboard = NSMenuItem(title: "打开官方控制台", action: #selector(openProviderDashboardTapped), keyEquivalent: "")
         openDashboard.target = self
         openDashboard.isEnabled = service.provider.dashboardURL != nil
         menu.addItem(openDashboard)
-
-        let diagnostics = NSMenuItem(title: "复制脱敏诊断", action: #selector(copyDiagnosticsTapped), keyEquivalent: "")
-        diagnostics.target = self
-        menu.addItem(diagnostics)
 
         let settings = NSMenuItem(title: "设置…", action: #selector(settingsTapped), keyEquivalent: ",")
         settings.target = self
@@ -2334,7 +2553,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buildDeepSeekMenu(_ menu: NSMenu, service: BalanceService) {
         if let b = service.dsBalance {
             let sym = service.symbol(for: b.currency)
-            menu.addItem(row(label: "总余额", value: sym + b.totalBalance, color: service.dsColor, bold: true))
+            menu.addItem(row(label: "总余额", value: sym + b.totalBalance, bold: true))
             menu.addItem(row(label: "充值余额", value: sym + b.toppedUpBalance))
             menu.addItem(row(label: "赠送余额", value: sym + b.grantedBalance))
 
@@ -2379,8 +2598,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         menu.addItem(row(
                             label: label,
                             value: String(format: "%.0f%%", remaining),
-                            color: BalanceService.tenStepColor(value: remaining, max: 100),
-                            bold: period.label == plan.primaryPeriod?.label
+                            bold: true
                         ))
                     }
                 }
@@ -2399,7 +2617,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(freeHeader)
 
             let totalStr = service.formatTokens(s.totalRemaining) + " tokens"
-            menu.addItem(row(label: "剩余总额度", value: totalStr, color: service.volcLevel.color, bold: true))
+            menu.addItem(row(label: "剩余总额度", value: totalStr, bold: true))
             menu.addItem(row(label: "有额度模型", value: "\(s.modelsWithQuota) / \(s.totalModels) 个"))
 
             if s.totalQuota > 0 {
@@ -2464,8 +2682,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             // Weekly
             if let pct = s.weeklyRemaining {
-                let color = percentColor(pct)
-                menu.addItem(row(label: "每周剩余", value: String(format: "%.0f%%", pct), color: color, bold: true))
+                menu.addItem(row(label: "每周剩余", value: String(format: "%.0f%%", pct), bold: true))
             }
             if let reset = s.weeklyResetAt {
                 menu.addItem(row(label: "每周重置", value: Self.dateTimeFormatter.string(from: reset)))
@@ -2473,8 +2690,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             // 5h
             if let pct = s.fiveHourRemaining {
-                let color = percentColor(pct)
-                menu.addItem(row(label: "5小时剩余", value: String(format: "%.0f%%", pct), color: color))
+                menu.addItem(row(label: "5小时剩余", value: String(format: "%.0f%%", pct), bold: true))
             }
             if let reset = s.fiveHourResetAt {
                 menu.addItem(row(label: "5h重置", value: Self.dateTimeFormatter.string(from: reset)))
@@ -2497,10 +2713,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             menu.addItem(loadingRow())
         }
-    }
-
-    private func percentColor(_ pct: Double) -> NSColor {
-        BalanceService.tenStepColor(value: pct, max: 100)
     }
 
     private func row(label: String, value: String, color: NSColor = .labelColor, bold: Bool = false) -> NSMenuItem {
