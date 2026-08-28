@@ -58,6 +58,38 @@ final class BalanceScaleTests: XCTestCase {
         ])
         XCTAssertEqual(summary.primaryPeriod?.label, "weekly")
         XCTAssertEqual(summary.primaryPeriod?.remainingPercent, 65)
+        XCTAssertTrue(BalanceService.hasFiveHourQuota(
+            provider: .volcengine,
+            codexSummary: nil,
+            volcPlanSummary: summary
+        ))
+        XCTAssertFalse(BalanceService.hasFiveHourQuota(
+            provider: .deepseek,
+            codexSummary: nil,
+            volcPlanSummary: summary
+        ))
+    }
+
+    func testCodexFiveHourDisplayAvailabilityFollowsReturnedLimit() {
+        let summary = CodexSummary(
+            planType: "plus",
+            weeklyRemaining: 80,
+            weeklyResetAt: nil,
+            fiveHourRemaining: 60,
+            fiveHourResetAt: nil,
+            limitReached: false,
+            lastUpdated: nil
+        )
+        XCTAssertTrue(BalanceService.hasFiveHourQuota(
+            provider: .codex,
+            codexSummary: summary,
+            volcPlanSummary: nil
+        ))
+        XCTAssertFalse(BalanceService.hasFiveHourQuota(
+            provider: .codex,
+            codexSummary: nil,
+            volcPlanSummary: nil
+        ))
     }
 
     func testProviderDescriptionsMatchVerifiedCapability() {
@@ -200,6 +232,29 @@ final class BalanceScaleTests: XCTestCase {
     func testMenuBarDisplayModesRemainStableForConfigCompatibility() {
         XCTAssertEqual(MenuBarDisplayMode.allCases.map(\.rawValue), ["value_only", "provider_and_value"])
         XCTAssertEqual(MenuBarDisplayMode.valueOnly.displayName, "仅显示额度")
+    }
+
+    func testMenuBarQuotaDisplayModesAndFallbacks() {
+        XCTAssertEqual(
+            MenuBarQuotaDisplayMode.allCases.map(\.rawValue),
+            ["five_hour_only", "total_only", "all"]
+        )
+        XCTAssertEqual(
+            BalanceService.quotaLineValues(total: "82%", fiveHour: "64%", mode: .all),
+            ["82%", "64%"]
+        )
+        XCTAssertEqual(
+            BalanceService.quotaLineValues(total: "82%", fiveHour: "64%", mode: .fiveHourOnly),
+            ["64%"]
+        )
+        XCTAssertEqual(
+            BalanceService.quotaLineValues(total: "82%", fiveHour: "64%", mode: .totalOnly),
+            ["82%"]
+        )
+        XCTAssertEqual(
+            BalanceService.quotaLineValues(total: "82%", fiveHour: nil, mode: .fiveHourOnly),
+            ["82%"]
+        )
     }
 
     func testLogRotationHasBoundedSize() {

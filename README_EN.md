@@ -1,6 +1,6 @@
 # API Quota Dashboard
 
-[简体中文](README.md) · Current version: **2.0.0 (Build 24)**
+[简体中文](README.md) · Current version: **2.1.0 (Build 25)**
 
 API Quota Dashboard is a lightweight macOS menu bar app that brings balances, usage, and plan allowances from commonly used AI developer platforms into one place. It supports quick provider switching, scheduled refreshes, proxy settings, launch at login, and light/dark icons that can follow the system appearance.
 
@@ -8,7 +8,7 @@ API Quota Dashboard is a lightweight macOS menu bar app that brings balances, us
 
 ## Download and install
 
-1. Download `APIQuotaDashboard-v2.0.0.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
+1. Download `APIQuotaDashboard-v2.1.0.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
 2. Extract the archive and drag `API额度看板.app` into Applications.
 3. Launch the app, then use its menu bar item to view quota information, switch providers, or open Settings.
 
@@ -53,8 +53,8 @@ The **General** tab also controls launch at login, system or manual proxies, ico
 - Supports 15-second, 30-second, one-minute, two-minute, five-minute, and custom refresh intervals.
 - Supports system and manually configured proxies.
 - Supports launch at login and light, dark, transparent, or system-matched icons.
-- Offers value-only and provider-plus-value menu bar display modes.
-- Copies a quota summary or redacted diagnostics and opens the provider's official console.
+- Offers value-only and provider-plus-value text modes, plus five-hour-only, total-only, or combined quota display when supported.
+- Copies the current quota summary or redacted diagnostics from Settings and opens the provider's official console from the menu.
 - Stores and switches between multiple DeepSeek accounts.
 - Stores API keys in macOS Keychain rather than plain-text configuration files.
 
@@ -87,30 +87,22 @@ SwiftPM places the executable at `.build/release/APIQuotaDashboard`. The downloa
 
 You should still review network requests, credential permissions, and third-party terms before use. Provider API changes may temporarily break individual queries.
 
-## What's new in 2.0.0
+## What's new in 2.1.0
 
-- Coalesces scheduled refreshes so timer and manual requests do not overlap.
-- Cancels old work and rejects stale responses after switching providers or accounts.
-- Retries transient timeouts, connection loss, HTTP 429, and 5xx failures once with a short delay.
-- Classifies and redacts HTTP, UI, log, and diagnostic errors.
-- Shows refresh progress, relative freshness, and stale-data warnings; refreshes after wake when needed.
-- Adds value-only and provider-plus-value menu bar display modes.
-- Adds copy-summary, redacted-diagnostics, and official-console actions.
-- Adds Command + 1–9 provider shortcuts plus accessibility labels and tooltips.
-- Adds account-provider search and a resizable settings window.
-- Confirms before deleting DeepSeek accounts or provider credentials.
-- Strictly validates manual proxy schemes, hosts, and ports and reports the active proxy mode.
-- Migrates launch at login to macOS 13+ `SMAppService` and removes the legacy LaunchAgent after successful registration.
-- Redacts and rotates logs at 512 KiB.
-- Adds a reproducible release script and 21 unit tests; ships an `arm64 + x86_64` Universal Binary.
-- Replaces the app icon with the new multilayer adaptive `APIQuotaDashboard.icon` Icon Composer asset.
+- Shows total and five-hour allowances together in the menu bar, with independent colors based on each remaining percentage.
+- Uses a compact centered two-line layout with a smaller total above a larger five-hour value.
+- Adds five-hour-only, total-only, and combined quota display choices in Settings.
+- Shows the same quick display choices below Auto Refresh whenever the active provider actually has a five-hour limit.
+- Restores the original expanded-menu layout with slightly darker, colorless quota values while preserving the existing text hierarchy.
+- Moves Copy Current Summary and Copy Redacted Diagnostics into Settings to simplify the expanded menu.
+- Adds five-hour-limit detection and display-mode coverage, for 23 unit tests in total.
 
 ## Checksum
 
-`APIQuotaDashboard-v2.0.0.zip`
+`APIQuotaDashboard-v2.1.0.zip`
 
 ```text
-SHA-256: 62f2e5aadd0ab49df0f05efc16d5f47de58b4ef223d519f21d3504449e15fc16
+SHA-256: 1f716f3e035e4fe86f37988f977cd9ef0cd98ff15faef9026ffa2db8d637e4cd
 ```
 
 ## Disclaimer
