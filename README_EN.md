@@ -1,6 +1,6 @@
 # API Quota Dashboard
 
-[简体中文](README.md) · Current version: **2.1.0 (Build 25)**
+[简体中文](README.md) · Current version: **2.2.0 (Build 28)**
 
 API Quota Dashboard is a lightweight macOS menu bar app that brings balances, usage, and plan allowances from commonly used AI developer platforms into one place. It supports quick provider switching, scheduled refreshes, proxy settings, launch at login, and light/dark icons that can follow the system appearance.
 
@@ -8,7 +8,7 @@ API Quota Dashboard is a lightweight macOS menu bar app that brings balances, us
 
 ## Download and install
 
-1. Download `APIQuotaDashboard-v2.1.0.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
+1. Download `APIQuotaDashboard-v2.2.0.zip` from [GitHub Releases](https://github.com/bsstxbel/APIQuotaDashboard/releases/latest).
 2. Extract the archive and drag `API额度看板.app` into Applications.
 3. Launch the app, then use its menu bar item to view quota information, switch providers, or open Settings.
 
@@ -25,6 +25,8 @@ The current package is ad-hoc signed and has not been notarized with an Apple De
 | Gemini | Official Google AI Studio Usage and Billing pages | Google AI Studio sign-in |
 | Kimi | Available, cash, and voucher balances | Moonshot API key stored in macOS Keychain |
 | Qwen | Per-model request and token limits | DashScope API key and Workspace ID |
+| Doubao consumer plan | Five-hour and seven-day remaining percentages | Signed-in local Doubao app |
+| Zhipu GLM | Remaining token/request packs, scope, expiry, and account balance | Chrome signed in to BigModel |
 | MiniMax | Token Plan and remaining allowance | Token Plan key stored in macOS Keychain |
 | OpenAI API | Organization costs for the last 30 days | Organization Admin API key stored in macOS Keychain |
 | OpenRouter | Purchased credits, total usage, and remaining credits | Management key stored in macOS Keychain |
@@ -39,6 +41,8 @@ The current package is ad-hoc signed and has not been notarized with an Apple De
    - DeepSeek: enter an account name and API key, then choose **Save and Switch**.
    - Volcengine: install and sign in to `arkcli`, refresh the list, and select a profile.
    - Codex: sign in to Codex locally first; the app uses the existing local sign-in state.
+   - Doubao: sign in to the local Doubao app and allow the macOS Keychain prompt on the first refresh.
+   - Zhipu GLM: sign in to `open.bigmodel.cn` in Chrome and allow the Chrome Safe Storage prompt on the first refresh. A regular API key cannot read account resource packs.
    - Kimi, Qwen, MiniMax, Claude, OpenAI API, OpenRouter, and SiliconFlow: enter the required credentials and save them. Qwen also requires a Workspace ID.
    - Gemini: open Google AI Studio, sign in, and confirm that it should be added to the provider list.
 3. On the **Providers** tab, select the items that should appear under **Switch Provider**, then save the selection.
@@ -83,28 +87,29 @@ SwiftPM places the executable at `.build/release/APIQuotaDashboard`. The downloa
 - `config.live.*.json`, `.build`, and local caches are ignored by Git.
 - DeepSeek, Claude, Kimi, Qwen, MiniMax, OpenAI API, OpenRouter, and SiliconFlow keys are stored in macOS Keychain.
 - Volcengine uses the local `arkcli` authentication state; Codex uses the existing local Codex credentials.
+- Doubao and Zhipu GLM read only their local signed-in sessions and send them only to the official quota endpoints on `www.doubao.com` and `open.bigmodel.cn`; sessions are never stored in app configuration or logs.
 - This repository does not contain real API keys, login tokens, or personal session archives.
 
 You should still review network requests, credential permissions, and third-party terms before use. Provider API changes may temporarily break individual queries.
 
-## What's new in 2.1.0
+## What's new in 2.2.0
 
-- Shows total and five-hour allowances together in the menu bar, with independent colors based on each remaining percentage.
-- Uses a compact centered two-line layout with a smaller total above a larger five-hour value.
-- Adds five-hour-only, total-only, and combined quota display choices in Settings.
-- Shows the same quick display choices below Auto Refresh whenever the active provider actually has a five-hour limit.
-- Restores the original expanded-menu layout with slightly darker, colorless quota values while preserving the existing text hierarchy.
-- Moves Copy Current Summary and Copy Redacted Diagnostics into Settings to simplify the expanded menu.
-- Adds five-hour-limit detection and display-mode coverage, for 23 unit tests in total.
+- Merges the previously unpublished 2.1.2 work: Doubao consumer-plan quota now refreshes in the background, with seven-day allowance above the five-hour allowance and its reset time.
+- Doubao uses only the local signed-in session with the official quota endpoint; it does not read chats or save login credentials.
+- Adds Zhipu GLM token/request resource packs, including remaining amount, scope, expiry, and account balance.
+- Shows the combined effective GLM token packs in the menu bar while retaining model-specific and request-pack details in the expanded menu.
+- Reads only the local Chrome session for `open.bigmodel.cn` and sends it only to the official Zhipu endpoints; regular API keys are not used for resource-pack queries.
+- Automatically adds GLM to eligible upgraded configurations and updates console links and bilingual guidance.
+- Expands the full test suite to 27 tests, including scoped GLM resource packs, account balances, and provider capabilities.
 
 ## Checksum
 
-`APIQuotaDashboard-v2.1.0.zip`
+`APIQuotaDashboard-v2.2.0.zip`
 
 ```text
-SHA-256: 1f716f3e035e4fe86f37988f977cd9ef0cd98ff15faef9026ffa2db8d637e4cd
+SHA-256: bc365c5df616a720758f24bc6e6e9e83692422701d50429a467df95039b890d9
 ```
 
 ## Disclaimer
 
-This project is not affiliated with or endorsed by DeepSeek, Volcengine, OpenAI, Anthropic, Google, Moonshot AI, Alibaba Cloud, or MiniMax. All product names and trademarks belong to their respective owners.
+This project is not affiliated with or endorsed by DeepSeek, Volcengine, Doubao, Zhipu AI, OpenAI, Anthropic, Google, Moonshot AI, Alibaba Cloud, or MiniMax. All product names and trademarks belong to their respective owners.

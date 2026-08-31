@@ -70,7 +70,7 @@ enum Provider: String, Codable, CaseIterable {
         case .gemini: address = "https://aistudio.google.com/usage"
         case .kimi: address = "https://platform.moonshot.cn/console"
         case .qwen: address = "https://bailian.console.aliyun.com/"
-        case .zhipu: address = "https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys"
+        case .zhipu: address = "https://open.bigmodel.cn/finance-center/resource-package/package-mgmt?tab=my"
         case .minimax: address = "https://platform.minimaxi.com/"
         case .openai: address = "https://platform.openai.com/usage"
         case .openrouter: address = "https://openrouter.ai/activity"
@@ -84,9 +84,9 @@ enum Provider: String, Codable, CaseIterable {
     var supportsQuotaQuery: Bool {
         switch self {
         case .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax,
-             .openai, .openrouter, .siliconflow:
+             .openai, .openrouter, .siliconflow, .doubao, .zhipu:
             return true
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .wenxin, .hunyuan:
             return false
         }
     }
@@ -122,8 +122,10 @@ enum Provider: String, Codable, CaseIterable {
         case .siliconflow:
             return "使用 API Key 查询账户总余额、充值余额与赠送余额"
         case .doubao:
-            return "方舟额度统一由“火山引擎”提供方查询"
-        case .zhipu, .wenxin, .hunyuan:
+            return "使用本机已登录豆包会话后台查询当前时段和近 7 天额度；不读取聊天记录，也不会保存登录凭证"
+        case .zhipu:
+            return "使用本机 Chrome 中已登录的智谱会话查询资源包剩余量、适用范围、到期时间和账户余额；不保存登录凭证"
+        case .wenxin, .hunyuan:
             return "当前仅检测本机软件，尚无已验证的通用余额接口"
         case .deepseek, .volcengine, .codex:
             return "已支持额度查询"
@@ -161,6 +163,13 @@ enum MenuBarQuotaDisplayMode: String, Codable, CaseIterable {
 struct MenuBarDisplayLine {
     var text: String
     let percentage: Double?
+    let horizontalOffset: CGFloat
+
+    init(text: String, percentage: Double?, horizontalOffset: CGFloat = 0) {
+        self.text = text
+        self.percentage = percentage
+        self.horizontalOffset = horizontalOffset
+    }
 }
 
 enum IconAppearance: String, Codable, CaseIterable {
@@ -541,6 +550,7 @@ final class BalanceService {
     // Codex
     private(set) var codexSummary: CodexSummary?
     private(set) var externalSummary: ExternalQuotaSummary?
+    private(set) var doubaoSummary: DoubaoQuotaSummary?
 
     // Common
     private(set) var provider: Provider
@@ -598,12 +608,14 @@ final class BalanceService {
         // provide quota data. Keep only providers this app can actually query.
         var providers = (cfg.enabledProviders ?? Provider.queryableCases)
             .filter { Self.isConfiguredForDisplay($0, config: cfg) }
-        if (cfg.providerCatalogVersion ?? 0) < 3 {
+        if (cfg.providerCatalogVersion ?? 0) < 5 {
             for provider in Provider.queryableCases
-                where !provider.requiresAccountSetupForDisplay && !providers.contains(provider) {
+                where !provider.requiresAccountSetupForDisplay
+                    && Self.isConfiguredForDisplay(provider, config: cfg)
+                    && !providers.contains(provider) {
                 providers.append(provider)
             }
-            cfg.providerCatalogVersion = 3
+            cfg.providerCatalogVersion = 5
         }
         if providers.isEmpty { providers = [.deepseek] }
 
@@ -670,6 +682,7 @@ final class BalanceService {
         volcPlanSummary = nil
         codexSummary = nil
         externalSummary = nil
+        doubaoSummary = nil
         localProviderPath = nil
         errorMessage = nil
         lastUpdated = nil
@@ -836,6 +849,10 @@ final class BalanceService {
                 && !(config.qwenWorkspaceID ?? "").isEmpty
         case .gemini:
             return config.geminiLoginConfirmed ?? false
+        case .doubao:
+            return ProviderDiscovery.scan().contains(where: { $0.provider == .doubao })
+        case .zhipu:
+            return ZhipuQuotaReader.hasChromeProfile
         default:
             return true
         }
@@ -929,13 +946,17 @@ final class BalanceService {
             }
             if errorMessage != nil { return "!" }
             return "…"
-        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow, .zhipu:
             if let summary = externalSummary { return summary.menuBarTitle }
             if errorMessage != nil { return "!" }
             return "…"
         case .gemini:
             return "网页登录"
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .doubao:
+            if let summary = doubaoSummary { return summary.menuBarTitle }
+            if errorMessage != nil { return "!" }
+            return "…"
+        case .wenxin, .hunyuan:
             return localProviderPath == nil ? "未找到" : "已安装"
         }
     }
@@ -965,7 +986,7 @@ final class BalanceService {
                 MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0)
             }
             fiveHour = codexSummary?.fiveHourRemaining.map {
-                MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0)
+                MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0, horizontalOffset: 0.5)
             }
         case .volcengine:
             let periods = volcPlanSummary?.primaryItem?.periods ?? []
@@ -979,7 +1000,14 @@ final class BalanceService {
                 MenuBarDisplayLine(text: formatTokens($0.totalRemaining), percentage: nil)
             }
             fiveHour = periods.first(where: { $0.label == "5h" })?.remainingPercent
-                .map { MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0) }
+                .map { MenuBarDisplayLine(text: String(format: "%.0f%%", $0), percentage: $0, horizontalOffset: 0.5) }
+        case .doubao:
+            total = doubaoSummary.map {
+                MenuBarDisplayLine(text: $0.lastSevenDays, percentage: $0.lastSevenDaysRemaining)
+            }
+            fiveHour = doubaoSummary.map {
+                MenuBarDisplayLine(text: $0.currentPeriod, percentage: $0.currentPeriodRemaining, horizontalOffset: 0.5)
+            }
         default:
             total = MenuBarDisplayLine(text: menuBarTitle, percentage: nil)
             fiveHour = nil
@@ -1018,20 +1046,24 @@ final class BalanceService {
         Self.hasFiveHourQuota(
             provider: provider,
             codexSummary: codexSummary,
-            volcPlanSummary: volcPlanSummary
+            volcPlanSummary: volcPlanSummary,
+            doubaoSummary: doubaoSummary
         )
     }
 
     static func hasFiveHourQuota(
         provider: Provider,
         codexSummary: CodexSummary?,
-        volcPlanSummary: VolcPlanSummary?
+        volcPlanSummary: VolcPlanSummary?,
+        doubaoSummary: DoubaoQuotaSummary? = nil
     ) -> Bool {
         switch provider {
         case .codex:
             return codexSummary?.fiveHourRemaining != nil || codexSummary?.fiveHourResetAt != nil
         case .volcengine:
             return volcPlanSummary?.primaryItem?.periods.contains(where: { $0.label == "5h" }) == true
+        case .doubao:
+            return doubaoSummary != nil
         default:
             return false
         }
@@ -1092,9 +1124,11 @@ final class BalanceService {
                 ("每周剩余", summary.weeklyRemaining.map { String(format: "%.0f%%", $0) } ?? "未知"),
                 ("5 小时剩余", summary.fiveHourRemaining.map { String(format: "%.0f%%", $0) } ?? "未知")
             ]
-        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow, .zhipu:
             return externalSummary?.rows ?? []
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .doubao:
+            return doubaoSummary?.rows ?? []
+        case .wenxin, .hunyuan:
             return [("本机状态", localProviderPath == nil ? "未检测到" : "已安装")]
         }
     }
@@ -1181,11 +1215,13 @@ final class BalanceService {
         case .deepseek: return dsColor
         case .volcengine: return volcLevel.color
         case .codex: return codexColor
-        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+        case .claude, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow, .zhipu:
             return errorMessage == nil && externalSummary != nil ? .systemGreen : .secondaryLabelColor
         case .gemini:
             return .systemBlue
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .doubao:
+            return errorMessage == nil && doubaoSummary != nil ? .systemGreen : .secondaryLabelColor
+        case .wenxin, .hunyuan:
             return localProviderPath == nil ? .secondaryLabelColor : .systemGreen
         }
     }
@@ -1317,6 +1353,8 @@ final class BalanceService {
         case .openai: await fetchOpenAI()
         case .openrouter: await fetchOpenRouter()
         case .siliconflow: await fetchSiliconFlow()
+        case .doubao: await fetchDoubao()
+        case .zhipu: await fetchZhipu()
         case .gemini:
             await setState {
                 self.externalSummary = ExternalQuotaSummary(
@@ -1326,8 +1364,48 @@ final class BalanceService {
                 self.errorMessage = nil
                 self.lastUpdated = Date()
             }
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .wenxin, .hunyuan:
             await fetchLocalProvider()
+        }
+    }
+
+    private func fetchZhipu() async {
+        do {
+            let summary = try await ZhipuQuotaReader.fetch(session: configuredURLSession())
+            await setState {
+                self.externalSummary = ExternalQuotaSummary(
+                    menuBarTitle: summary.menuBarTitle,
+                    rows: summary.rows,
+                    fractionRemaining: summary.fractionRemaining
+                )
+                self.errorMessage = nil
+                self.lastUpdated = Date()
+            }
+        } catch {
+            await setState {
+                self.externalSummary = nil
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func fetchDoubao() async {
+        do {
+            let summary = try await DoubaoQuotaReader.fetch(session: configuredURLSession())
+            await setState {
+                self.doubaoSummary = summary
+                self.localProviderPath = ProviderDiscovery.scan()
+                    .first(where: { $0.provider == .doubao })?.path
+                self.errorMessage = nil
+                self.lastUpdated = Date()
+            }
+        } catch {
+            await setState {
+                self.doubaoSummary = nil
+                self.localProviderPath = ProviderDiscovery.scan()
+                    .first(where: { $0.provider == .doubao })?.path
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -2087,6 +2165,7 @@ private final class StatusItemTitleView: NSView {
         let text: String
         let font: NSFont
         let color: NSColor
+        let horizontalOffset: CGFloat
 
         var attributes: [NSAttributedString.Key: Any] {
             [.font: font, .foregroundColor: color]
@@ -2122,7 +2201,7 @@ private final class StatusItemTitleView: NSView {
             } else {
                 color = fallbackColor
             }
-            return RenderedLine(text: line.text, font: font, color: color)
+            return RenderedLine(text: line.text, font: font, color: color, horizontalOffset: line.horizontalOffset)
         }
         needsDisplay = true
     }
@@ -2151,7 +2230,7 @@ private final class StatusItemTitleView: NSView {
         let topY = bottomY + bottomSize.height - overlap
 
         (bottom.text as NSString).draw(
-            at: NSPoint(x: floor((bounds.width - bottomSize.width) / 2) - 0.5, y: bottomY),
+            at: NSPoint(x: floor((bounds.width - bottomSize.width) / 2) - 0.5 + bottom.horizontalOffset, y: bottomY),
             withAttributes: bottom.attributes
         )
         (top.text as NSString).draw(
@@ -2445,9 +2524,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .deepseek: buildDeepSeekMenu(menu, service: service)
         case .volcengine: buildVolcengineMenu(menu, service: service)
         case .codex: buildCodexMenu(menu, service: service)
-        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow:
+        case .doubao: buildDoubaoMenu(menu, service: service)
+        case .claude, .gemini, .kimi, .qwen, .minimax, .openai, .openrouter, .siliconflow, .zhipu:
             buildExternalProviderMenu(menu, service: service)
-        case .doubao, .zhipu, .wenxin, .hunyuan:
+        case .wenxin, .hunyuan:
             buildLocalProviderMenu(menu, service: service)
         }
 
@@ -2659,6 +2739,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(timestampRow(service.provider.queryAvailabilityDescription))
         } else {
             menu.addItem(errorRow("未检测到软件", detail: "可在设置中重新扫描"))
+        }
+    }
+
+    private func buildDoubaoMenu(_ menu: NSMenu, service: BalanceService) {
+        if let summary = service.doubaoSummary {
+            for (index, entry) in summary.rows.enumerated() {
+                menu.addItem(row(label: entry.0, value: entry.1, bold: index == 0))
+            }
+            menu.addItem(timestampRow(service.freshnessDescription))
+        } else if let error = service.errorMessage {
+            menu.addItem(errorRow("尚未查询", detail: error))
+            menu.addItem(timestampRow("确认豆包客户端仍保持登录后，点击刷新"))
+        } else {
+            menu.addItem(loadingRow())
         }
     }
 

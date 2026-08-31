@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-VERSION="${1:-2.1.0}"
-BUILD_NUMBER="${2:-25}"
+VERSION="${1:-2.2.0}"
+BUILD_NUMBER="${2:-28}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_DIR="$(cd "$PROJECT_DIR/../.." && pwd)"

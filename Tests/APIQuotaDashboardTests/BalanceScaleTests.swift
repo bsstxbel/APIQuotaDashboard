@@ -99,24 +99,123 @@ final class BalanceScaleTests: XCTestCase {
         XCTAssertTrue(Provider.openai.queryAvailabilityDescription.contains("Costs API"))
         XCTAssertTrue(Provider.openrouter.queryAvailabilityDescription.contains("Management Key"))
         XCTAssertTrue(Provider.siliconflow.queryAvailabilityDescription.contains("总余额"))
+        XCTAssertTrue(Provider.zhipu.queryAvailabilityDescription.contains("Chrome"))
     }
 
     func testOnlyActuallyQueryableProvidersAppearInSettings() {
         XCTAssertEqual(
             Provider.queryableCases,
             [
-                .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .minimax,
-                .openai, .openrouter, .siliconflow
+                .deepseek, .volcengine, .codex, .claude, .gemini, .kimi, .qwen, .doubao,
+                .zhipu, .minimax, .openai, .openrouter, .siliconflow
             ]
         )
         XCTAssertTrue(Provider.kimi.supportsQuotaQuery)
         XCTAssertTrue(Provider.claude.supportsQuotaQuery)
-        XCTAssertFalse(Provider.doubao.supportsQuotaQuery)
-        XCTAssertFalse(Provider.zhipu.supportsQuotaQuery)
+        XCTAssertTrue(Provider.doubao.supportsQuotaQuery)
+        XCTAssertTrue(Provider.zhipu.supportsQuotaQuery)
         XCTAssertTrue(Provider.kimi.requiresAccountSetupForDisplay)
         XCTAssertTrue(Provider.gemini.requiresAccountSetupForDisplay)
         XCTAssertTrue(Provider.openrouter.requiresAccountSetupForDisplay)
         XCTAssertFalse(Provider.codex.requiresAccountSetupForDisplay)
+        XCTAssertFalse(Provider.zhipu.requiresAccountSetupForDisplay)
+    }
+
+    func testDoubaoQuotaReaderParsesOfficialQuotaResponse() throws {
+        let response = try JSONSerialization.data(withJSONObject: [
+            "code": 0,
+            "data": [
+                "current_subscription": ["display": ["short_name": "标准套餐"]],
+                "window_limit_section": [
+                    "window_limit_groups": [[
+                        "window_limits": [
+                            ["window_type": 1, "used_percent": 8, "end_time": 1_800_000_000_000],
+                            ["window_type": 2, "used_percent": 3, "end_time": 1_800_600_000_000]
+                        ]
+                    ]]
+                ]
+            ]
+        ])
+        let summary = try DoubaoQuotaReader.parseQuotaResponse(
+            response,
+            now: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+
+        XCTAssertEqual(summary.planName, "标准套餐")
+        XCTAssertEqual(summary.currentPeriod, "92%")
+        XCTAssertEqual(summary.lastSevenDays, "97%")
+        XCTAssertEqual(summary.menuBarTitle, "92%")
+        XCTAssertEqual(summary.currentPeriodRemaining, 92)
+        XCTAssertEqual(summary.lastSevenDaysRemaining, 97)
+        XCTAssertNotNil(summary.resetHint)
+    }
+
+    func testDoubaoQuotaReaderRejectsIncompleteOfficialResponse() throws {
+        let response = try JSONSerialization.data(withJSONObject: [
+            "code": 0,
+            "data": ["window_limit_section": ["window_limit_groups": []]]
+        ])
+        XCTAssertThrowsError(try DoubaoQuotaReader.parseQuotaResponse(response))
+    }
+
+    func testZhipuQuotaReaderParsesScopedNewUserResourcePackages() throws {
+        let response = try JSONSerialization.data(withJSONObject: [
+            "code": 200,
+            "total": 4,
+            "rows": [
+                [
+                    "resourcePackageName": "【新用户专享】200万通用模型推理资源包",
+                    "type": "give", "status": "EFFECTIVE",
+                    "suitableScene": "适用于所有按tokens计费的基础模型推理",
+                    "tokenBalance": 2_000_000, "availableBalance": 1_500_000,
+                    "consumeType": "TOKENS", "tokenPurpose": "MODEL",
+                    "packageExpirationTime": "2026-11-30 10:50:28"
+                ],
+                [
+                    "resourcePackageName": "【新用户专享】600万GLM-4.6V资源包",
+                    "type": "give", "status": "EFFECTIVE",
+                    "suitableScene": "适用于glm-4.6v模型的推理",
+                    "tokenBalance": 6_000_000, "availableBalance": 6_000_000,
+                    "consumeType": "TOKENS", "tokenPurpose": "MODEL",
+                    "packageExpirationTime": "2026-11-30 10:50:28"
+                ],
+                [
+                    "resourcePackageName": "【新用户专享】1200万GLM-4.5-Air资源包",
+                    "type": "give", "status": "EFFECTIVE",
+                    "suitableScene": "适用于glm-4.5-air模型的推理",
+                    "tokenBalance": 12_000_000, "availableBalance": 12_000_000,
+                    "consumeType": "TOKENS", "tokenPurpose": "MODEL",
+                    "packageExpirationTime": "2026-11-30 10:50:28"
+                ],
+                [
+                    "resourcePackageName": "【新用户专享】100次搜索资源包",
+                    "type": "give", "status": "EFFECTIVE",
+                    "suitableScene": "适用于搜索模型的推理",
+                    "tokenBalance": 100, "availableBalance": 80,
+                    "consumeType": "TIMES", "tokenPurpose": "MODEL",
+                    "packageExpirationTime": "2026-11-30 10:50:28"
+                ]
+            ]
+        ])
+        let summary = try ZhipuQuotaReader.parseQuotaResponse(response)
+
+        XCTAssertEqual(summary.packages.count, 4)
+        XCTAssertEqual(summary.tokenTotal, 20_000_000)
+        XCTAssertEqual(summary.tokenAvailable, 19_500_000)
+        XCTAssertEqual(summary.menuBarTitle, "1950万")
+        XCTAssertEqual(summary.fractionRemaining, 0.975)
+        XCTAssertEqual(summary.rows.first(where: { $0.0 == "Token 包合计" })?.1, "1950万 / 2000万 tokens")
+        XCTAssertEqual(summary.rows.first(where: { $0.0 == "最早到期" })?.1, "2026-11-30 10:50")
+    }
+
+    func testZhipuQuotaReaderParsesAccountBalance() throws {
+        let response = try JSONSerialization.data(withJSONObject: [
+            "code": 200,
+            "data": ["availableBalance": "12.50", "giveAmount": 2]
+        ])
+        let balance = try ZhipuQuotaReader.parseFinanceResponse(response)
+        XCTAssertEqual(balance.availableBalance, 12.5)
+        XCTAssertEqual(balance.giftBalance, 2)
     }
 
     func testStatusItemWidthShrinksAndRemainsBounded() {

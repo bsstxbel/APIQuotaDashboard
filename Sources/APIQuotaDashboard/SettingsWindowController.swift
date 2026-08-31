@@ -244,6 +244,18 @@ final class SettingsWindowController: NSWindowController {
             ]
         )
 
+        let doubaoMethod = NSTextField(wrappingLabelWithString: "查询方式：使用本机已登录的豆包会话，在后台读取官方额度接口的当前时段和近 7 天额度。不会读取聊天记录，也不会保存登录凭证。")
+        doubaoMethod.textColor = .secondaryLabelColor
+        let doubaoSteps = NSTextField(wrappingLabelWithString: "无需打开“额度状态”，也不需要辅助功能权限。首次刷新时 macOS 如询问钥匙串访问，请允许本应用读取豆包的本机登录会话。")
+        doubaoSteps.textColor = .secondaryLabelColor
+        addProviderCard(to: stack, title: "豆包个人订阅", views: [doubaoMethod, doubaoSteps])
+
+        let zhipuMethod = NSTextField(wrappingLabelWithString: "查询方式：使用本机 Chrome 中已登录的智谱 BigModel 会话，读取官方资源包接口，显示 Token/次数包的剩余量、适用范围、到期时间及账户余额。不会读取浏览记录，也不会保存登录凭证。")
+        zhipuMethod.textColor = .secondaryLabelColor
+        let zhipuSteps = NSTextField(wrappingLabelWithString: "请先在 Chrome 登录 open.bigmodel.cn。首次刷新时 macOS 如询问钥匙串访问，请允许本应用读取 Chrome Safe Storage；普通 API Key 不能查询这些账户资源包。")
+        zhipuSteps.textColor = .secondaryLabelColor
+        addProviderCard(to: stack, title: Provider.zhipu.displayName, views: [zhipuMethod, zhipuSteps])
+
         let codexMethod = NSTextField(wrappingLabelWithString: "登录方式：使用本机 Codex 的 ChatGPT 登录状态；切换到 Codex 后自动查询每周和 5 小时额度。")
         codexMethod.textColor = .secondaryLabelColor
         codexStatus.textColor = .secondaryLabelColor
@@ -534,6 +546,7 @@ final class SettingsWindowController: NSWindowController {
         guard IconAppearance.allCases.indices.contains(index) else { return }
         service.setIconAppearance(IconAppearance.allCases[index])
     }
+
 
     @objc private func menuBarDisplayChanged() {
         let index = menuBarDisplayPopup.indexOfSelectedItem
